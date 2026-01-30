@@ -1,61 +1,101 @@
-<div class="container">
-    <select id="region">
-        <option value="eu">Europe (EU)</option>
-        <option value="us">Americas (US)</option>
-        <option value="kr">Korea (KR)</option>
-        <option value="tw">Taiwan (TW)</option>
-    </select>
-    <input type="text" id="realm" placeholder="Realm (e.g. Area 52)">
-    <input type="text" id="name" placeholder="Character Name">
-    <button onclick="fetchCharacter()">Search</button>
-    
-    <div id="result"></div>
-</div>
-
-<script>
-async function fetchCharacter() {
-    const region = document.getElementById('region').value;
-    const name = document.getElementById('name').value.trim();
-    const realm = document.getElementById('realm').value.trim();
-    const resultDiv = document.getElementById('result');
-
-    if (!name || !realm) return alert("Enter details");
-
-    resultDiv.innerHTML = "Searching " + region.toUpperCase() + "...";
-
-    try {
-        // Updated URL to include the region parameter
-        const workerUrl = `https://my-worker.whazorz.workers.dev/?name=${encodeURIComponent(name)}&realm=${encodeURIComponent(realm)}&region=${region}`;
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WoW Character Lookup</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #0b0b0b; color: #fff; text-align: center; padding: 20px; }
+        .search-box { background: #1a1a1a; padding: 20px; border-radius: 10px; border: 1px solid #333; display: inline-block; margin-bottom: 20px; }
+        input, select { padding: 10px; margin: 5px; border-radius: 5px; border: 1px solid #444; background: #000; color: #fff; }
+        button { padding: 10px 20px; background: #ffd100; border: none; font-weight: bold; cursor: pointer; border-radius: 5px; }
+        button:hover { background: #e6bc00; }
         
-        const response = await fetch(workerUrl);
-        const data = await response.json();
+        #result { max-width: 800px; margin: 0 auto; display: none; background: #161616; padding: 20px; border-radius: 10px; border: 1px solid #222; }
+        .render-container { position: relative; width: 100%; max-width: 500px; margin: 0 auto; }
+        .render-img { width: 100%; height: auto; filter: drop-shadow(0 0 15px #000); }
+        
+        .guild-list { text-align: left; background: #000; padding: 15px; border-radius: 5px; max-height: 250px; overflow-y: auto; margin-top: 15px; font-size: 14px; border: 1px solid #333; }
+        .guild-item { padding: 4px 0; border-bottom: 1px solid #111; display: flex; justify-content: space-between; }
+        .rank { color: #888; font-style: italic; }
+        .error { color: #ff4444; font-weight: bold; }
+    </style>
+</head>
+<body>
 
-        if (data.error || !data.profile.name) {
-            resultDiv.innerHTML = "Character not found on " + region.toUpperCase();
-            return;
+    <h1>WoW Armory Proxy</h1>
+    
+    <div class="search-box">
+        <select id="region">
+            <option value="eu">Europe (EU)</option>
+            <option value="us">Americas (US)</option>
+        </select>
+        <input type="text" id="realm" placeholder="Realm (e.g. Stormscale)">
+        <input type="text" id="name" placeholder="Name (e.g. Whazorz)">
+        <button onclick="fetchCharacter()">Search</button>
+    </div>
+
+    <div id="result"></div>
+
+    <script>
+        async function fetchCharacter() {
+            const region = document.getElementById('region').value;
+            const realm = document.getElementById('realm').value.trim();
+            const name = document.getElementById('name').value.trim();
+            const resultDiv = document.getElementById('result');
+
+            if (!realm || !name) return alert("Please enter both Name and Realm.");
+
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = "Connecting to Worker...";
+
+            try {
+                // YOUR WORKER URL
+                const workerUrl = `https://my-worker.whazorz.workers.dev/?name=${encodeURIComponent(name)}&realm=${encodeURIComponent(realm)}&region=${region}`;
+                
+                const response = await fetch(workerUrl);
+                const data = await response.json();
+
+                if (data.error) {
+                    resultDiv.innerHTML = `<p class="error">Error: ${data.error}</p>`;
+                    return;
+                }
+
+                // Get 3D Render Asset
+                const assets = data.media.assets || [];
+                const renderUrl = assets.find(a => a.key === 'main-raw')?.value 
+                               || assets.find(a => a.key === 'main')?.value 
+                               || assets.find(a => a.key === 'avatar')?.value;
+
+                // Build Roster HTML
+                let rosterHtml = "";
+                if (data.roster && data.roster.length > 0) {
+                    rosterHtml = `<h3>Guild Roster: ${data.profile.guild.name}</h3><div class="guild-list">`;
+                    data.roster.slice(0, 100).forEach(member => {
+                        rosterHtml += `
+                            <div class="guild-item">
+                                <span>${member.character.name}</span>
+                                <span class="rank">Rank ${member.rank}</span>
+                            </div>`;
+                    });
+                    rosterHtml += `</div>`;
+                }
+
+                resultDiv.innerHTML = `
+                    <div class="render-container">
+                        <img src="${renderUrl}" class="render-img" alt="Character Render">
+                    </div>
+                    <h2>${data.profile.name}</h2>
+                    <p>${data.profile.race.name} ${data.profile.active_spec.name} ${data.profile.character_class.name}</p>
+                    <p>Level ${data.profile.level} | iLvl ${data.profile.average_item_level}</p>
+                    <hr style="border:0; border-top:1px solid #333">
+                    ${rosterHtml}
+                `;
+
+            } catch (err) {
+                resultDiv.innerHTML = `<p class="error">Worker Offline: ${err.message}</p>`;
+            }
         }
-
-        const assets = data.media.assets || [];
-        const renderUrl = assets.find(a => a.key === 'main-raw')?.value || assets.find(a => a.key === 'main')?.value;
-
-        let rosterHtml = "";
-        if (data.roster && data.roster.length > 0) {
-            rosterHtml = `<h4>Guild: ${data.profile.guild.name}</h4><div style="max-height:150px; overflow-y:auto; font-size:12px; border:1px solid #333;">`;
-            data.roster.slice(0, 30).forEach(m => {
-                rosterHtml += `<div>${m.character.name} - Rank ${m.rank}</div>`;
-            });
-            rosterHtml += `</div>`;
-        }
-
-        resultDiv.innerHTML = `
-            <h3>${data.profile.name} (${data.region.toUpperCase()})</h3>
-            <img src="${renderUrl}" style="width:100%; max-width:350px;">
-            <p>${data.profile.character_class.name} | iLvl ${data.profile.average_item_level}</p>
-            ${rosterHtml}
-        `;
-
-    } catch (err) {
-        resultDiv.innerHTML = "Error connecting to worker.";
-    }
-}
-</script>
+    </script>
+</body>
+</html>
