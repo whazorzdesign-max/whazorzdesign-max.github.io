@@ -1,0 +1,113 @@
+Here is the complete index.html for your GitHub Pages site. It is designed to work perfectly with your Cloudflare Worker URL and includes some basic CSS to make the WoW data look good.
+
+HTML
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WoW Character Lookup</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #0f0f0f;
+            color: #e0e0e0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 50px;
+        }
+        .search-container {
+            background: #1e1e1e;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #333;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        }
+        input {
+            padding: 10px;
+            border: 1px solid #444;
+            background: #121212;
+            color: white;
+            border-radius: 4px;
+            margin-right: 10px;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #ffd100;
+            border: none;
+            border-radius: 4px;
+            font-weight: bold;
+            cursor: pointer;
+            color: #000;
+        }
+        button:hover { background-color: #ffb000; }
+        #result {
+            margin-top: 30px;
+            width: 100%;
+            max-width: 500px;
+            padding: 20px;
+            border-radius: 8px;
+            background: #1e1e1e;
+            display: none; /* Hidden until search */
+        }
+        .error { color: #ff4444; }
+        .success h2 { color: #ffd100; margin-top: 0; }
+        .stat { margin: 5px 0; font-size: 1.1em; }
+    </style>
+</head>
+<body>
+
+    <div class="search-container">
+        <input type="text" id="realm" placeholder="Realm (e.g. Draenor)">
+        <input type="text" id="name" placeholder="Character Name">
+        <button onclick="fetchCharacter()">Fetch Character</button>
+    </div>
+
+    <div id="result"></div>
+
+    <script>
+        async function fetchCharacter() {
+            const resultDiv = document.getElementById('result');
+            const name = document.getElementById('name').value.trim();
+            const realm = document.getElementById('realm').value.trim();
+
+            if (!name || !realm) {
+                alert("Please enter both name and realm.");
+                return;
+            }
+
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = "Searching the mists...";
+
+            // YOUR WORKER URL
+            const workerUrl = "https://my-worker.whazorz.workers.dev";
+
+            try {
+                const response = await fetch(`${workerUrl}/?name=${encodeURIComponent(name)}&realm=${encodeURIComponent(realm)}`);
+                const data = await response.json();
+
+                if (!response.ok || data.error) {
+                    resultDiv.innerHTML = `<p class="error">Error: ${data.error || 'Character not found'}</p>`;
+                    return;
+                }
+
+                // Displaying the data
+                resultDiv.innerHTML = `
+                    <div class="success">
+                        <h2>${data.name}</h2>
+                        <div class="stat"><strong>Level:</strong> ${data.level}</div>
+                        <div class="stat"><strong>Race:</strong> ${data.race.name}</div>
+                        <div class="stat"><strong>Class:</strong> ${data.character_class.name}</div>
+                        <div class="stat"><strong>Spec:</strong> ${data.active_spec.name}</div>
+                        <div class="stat"><strong>Average iLvl:</strong> ${data.average_item_level}</div>
+                        <div class="stat"><strong>Achievement Points:</strong> ${data.achievement_points}</div>
+                    </div>
+                `;
+            } catch (err) {
+                resultDiv.innerHTML = `<p class="error">Network error: ${err.message}</p>`;
+            }
+        }
+    </script>
+</body>
+</html>
