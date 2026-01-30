@@ -1,125 +1,70 @@
-Here is the complete index.html for your GitHub Pages site. It is designed to work perfectly with your Cloudflare Worker URL and includes some basic CSS to make the WoW data look good.
-
-HTML
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WoW Character Lookup</title>
     <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #0f0f0f;
-            color: #e0e0e0;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 50px;
-        }
-        .search-container {
-            background: #1e1e1e;
-            padding: 20px;
-            border-radius: 8px;
-            border: 1px solid #333;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-        }
-        input {
-            padding: 10px;
-            border: 1px solid #444;
-            background: #121212;
-            color: white;
-            border-radius: 4px;
-            margin-right: 10px;
-        }
-        button {
-            padding: 10px 20px;
-            background-color: #ffd100;
-            border: none;
-            border-radius: 4px;
-            font-weight: bold;
-            cursor: pointer;
-            color: #000;
-        }
-        button:hover { background-color: #ffb000; }
-        #result {
-            margin-top: 30px;
-            width: 100%;
-            max-width: 500px;
-            padding: 20px;
-            border-radius: 8px;
-            background: #1e1e1e;
-            display: none; /* Hidden until search */
-        }
-        .error { color: #ff4444; }
-        .success h2 { color: #ffd100; margin-top: 0; }
-        .stat { margin: 5px 0; font-size: 1.1em; }
+        body { font-family: sans-serif; background: #121212; color: white; text-align: center; padding: 50px; }
+        .container { background: #1e1e1e; padding: 20px; border-radius: 10px; display: inline-block; }
+        input { padding: 10px; border-radius: 5px; border: 1px solid #444; background: #000; color: white; }
+        button { padding: 10px 20px; background: #ffd100; border: none; font-weight: bold; cursor: pointer; }
+        #result { margin-top: 20px; }
+        .render-img { width: 100%; max-width: 500px; filter: drop-shadow(0 0 10px #000); }
     </style>
 </head>
 <body>
 
-    <div class="search-container">
-        <input type="text" id="realm" placeholder="Realm (e.g. Draenor)">
+    <div class="container">
+        <input type="text" id="realm" placeholder="Realm (e.g. Stormscale)">
         <input type="text" id="name" placeholder="Character Name">
-        <button onclick="fetchCharacter()">Fetch Character</button>
+        <button onclick="fetchCharacter()">Search</button>
+        
+        <div id="result"></div>
     </div>
 
-    <div id="result"></div>
+    <script>
+        // Use 'async' here so 'await' works inside
+        async function fetchCharacter() {
+            const name = document.getElementById('name').value.trim();
+            const realm = document.getElementById('realm').value.trim();
+            const resultDiv = document.getElementById('result');
 
-<script>
+            if (!name || !realm) {
+                alert("Please enter name and realm");
+                return;
+            }
 
+            resultDiv.innerHTML = "Fetching character...";
 
+            try {
+                // Change this URL to your actual worker URL
+                const workerUrl = `https://my-worker.whazorz.workers.dev/?name=${encodeURIComponent(name)}&realm=${encodeURIComponent(realm)}`;
+                
+                const response = await fetch(workerUrl);
+                const data = await response.json();
 
-async function fetchCharacter() {
-    const resultDiv = document.getElementById('result');
-    const name = document.getElementById('name').value;
-    const realm = document.getElementById('realm').value;
+                if (data.error || !data.profile) {
+                    resultDiv.innerHTML = "Character not found or API error.";
+                    return;
+                }
 
-    resultDiv.style.display = 'block';
-    resultDiv.innerHTML = "Loading character...";
+                // Find the 3D Render (main-raw is the best quality)
+                const assets = data.media.assets || [];
+                const renderUrl = assets.find(a => a.key === 'main-raw')?.value 
+                               || assets.find(a => a.key === 'main')?.value 
+                               || assets.find(a => a.key === 'avatar')?.value;
 
-    try {
-        const response = await fetch(`https://my-worker.whazorz.workers.dev/?name=${name}&realm=${realm}`);
-        const data = await response.json();
+                resultDiv.innerHTML = `
+                    <h2>${data.profile.name}</h2>
+                    <p>${data.profile.character_class.name} - ${data.profile.active_spec.name}</p>
+                    <img src="${renderUrl}" class="render-img" alt="Character Render">
+                    <p>Level: ${data.profile.level} | iLvl: ${data.profile.average_item_level}</p>
+                `;
 
-        if (data.error || !data.profile.name) {
-            resultDiv.innerHTML = "Character not found.";
-            return;
+            } catch (err) {
+                console.error(err);
+                resultDiv.innerHTML = "Failed to connect to Worker.";
+            }
         }
-
-        // Find the "main" raw render or the avatar
-        const assets = data.media.assets || [];
-        const mainRender = assets.find(a => a.key === 'main-raw')?.value || assets.find(a => a.key === 'main')?.value;
-        const fallbackAvatar = assets.find(a => a.key === 'avatar')?.value;
-
-        resultDiv.innerHTML = `
-            <div style="text-align:center">
-                <h2>${data.profile.name}</h2>
-                <p>${data.profile.character_class.name} - ${data.profile.active_spec.name}</p>
-                <img src="${mainRender || fallbackAvatar}" style="max-width: 100%; height: auto; border-radius: 10px;">
-                <p>iLvl: ${data.profile.average_item_level}</p>
-            </div>
-        `;
-    } catch (e) {
-        resultDiv.innerHTML = "Error: Check console.";
-        console.error(e);
-    }
-}
-
-// In your HTML script:
-const response = await fetch(`https://my-worker.whazorz.workers.dev/?name=${name}&realm=${realm}`);
-const data = await response.json();
-
-// To show the 3D render:
-const renderImg = data.media.assets.find(a => a.key === "main-raw")?.value 
-                || data.media.assets.find(a => a.key === "main")?.value;
-
-document.getElementById('result').innerHTML = `
-    <img src="${renderImg}" style="width: 100%; max-width: 500px;">
-    <h3>${data.profile.name}</h3>
-`;
-
-
-</script>
+    </script>
 </body>
 </html>
