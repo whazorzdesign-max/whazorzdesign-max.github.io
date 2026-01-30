@@ -67,6 +67,9 @@ HTML
     <div id="result"></div>
 
 <script>
+
+
+
 async function fetchCharacter() {
     const resultDiv = document.getElementById('result');
     const name = document.getElementById('name').value;
@@ -102,6 +105,21 @@ async function fetchCharacter() {
         console.error(e);
     }
 }
+
+// In your HTML script:
+const response = await fetch(`https://my-worker.whazorz.workers.dev/?name=${name}&realm=${realm}`);
+const data = await response.json();
+
+// To show the 3D render:
+const renderImg = data.media.assets.find(a => a.key === "main-raw")?.value 
+                || data.media.assets.find(a => a.key === "main")?.value;
+
+document.getElementById('result').innerHTML = `
+    <img src="${renderImg}" style="width: 100%; max-width: 500px;">
+    <h3>${data.profile.name}</h3>
+`;
+
+
 </script>
 </body>
 </html>
