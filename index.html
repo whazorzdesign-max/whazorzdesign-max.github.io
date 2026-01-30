@@ -1,101 +1,135 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WoW Character Lookup</title>
     <style>
-        body { font-family: 'Segoe UI', sans-serif; background: #0b0b0b; color: #fff; text-align: center; padding: 20px; }
-        .search-box { background: #1a1a1a; padding: 20px; border-radius: 10px; border: 1px solid #333; display: inline-block; margin-bottom: 20px; }
-        input, select { padding: 10px; margin: 5px; border-radius: 5px; border: 1px solid #444; background: #000; color: #fff; }
-        button { padding: 10px 20px; background: #ffd100; border: none; font-weight: bold; cursor: pointer; border-radius: 5px; }
-        button:hover { background: #e6bc00; }
+        body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #111; color: white; font-family: sans-serif; }
         
-        #result { max-width: 800px; margin: 0 auto; display: none; background: #161616; padding: 20px; border-radius: 10px; border: 1px solid #222; }
-        .render-container { position: relative; width: 100%; max-width: 500px; margin: 0 auto; }
-        .render-img { width: 100%; height: auto; filter: drop-shadow(0 0 15px #000); }
+        /* 16:9 Viewport in the Middle */
+        #viewport-container {
+            position: relative;
+            width: 100vw;
+            height: 56.25vw; /* 16:9 Ratio */
+            max-height: 100vh;
+            max-width: 177.78vh;
+            margin: auto;
+            background: #222;
+            border: 2px solid #444;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* Interface Overlay (Modeling Software Style) */
+        .ui-panel {
+            position: absolute;
+            background: rgba(30, 30, 30, 0.9);
+            padding: 15px;
+            border: 1px solid #555;
+            font-size: 12px;
+            z-index: 10;
+        }
+        .left-panel { top: 10px; left: 10px; width: 200px; bottom: 10px; }
+        .right-panel { top: 10px; right: 10px; width: 220px; bottom: 10px; }
+        .bottom-bar { bottom: 10px; left: 220px; right: 230px; height: 40px; text-align: center; }
+
+        canvas { width: 100%; height: 100%; display: block; }
         
-        .guild-list { text-align: left; background: #000; padding: 15px; border-radius: 5px; max-height: 250px; overflow-y: auto; margin-top: 15px; font-size: 14px; border: 1px solid #333; }
-        .guild-item { padding: 4px 0; border-bottom: 1px solid #111; display: flex; justify-content: space-between; }
-        .rank { color: #888; font-style: italic; }
-        .error { color: #ff4444; font-weight: bold; }
+        button { background: #444; color: white; border: 1px solid #666; padding: 5px; cursor: pointer; margin: 2px; }
+        button:hover { background: #ffd100; color: black; }
     </style>
 </head>
 <body>
 
-    <h1>WoW Armory Proxy</h1>
-    
-    <div class="search-box">
-        <select id="region">
-            <option value="eu">Europe (EU)</option>
-            <option value="us">Americas (US)</option>
-        </select>
-        <input type="text" id="realm" placeholder="Realm (e.g. Stormscale)">
-        <input type="text" id="name" placeholder="Name (e.g. Whazorz)">
-        <button onclick="fetchCharacter()">Search</button>
+    <div id="viewport-container">
+        <div id="three-canvas-container"></div>
+
+        <div class="ui-panel left-panel">
+            <h3>Scene Explorer</h3>
+            <div id="character-info">Character: None</div>
+            <hr>
+            <h4>Bones</h4>
+            <label><input type="checkbox" id="show-bones" onchange="toggleBones()"> Show Skeleton</label>
+            <div id="bone-list"></div>
+        </div>
+
+        <div class="ui-panel right-panel">
+            <h3>Animations</h3>
+            <button onclick="playAnim('Idle')">Idle</button>
+            <button onclick="playAnim('Attack')">Attack</button>
+            <button onclick="playAnim('Dance')">Dance</button>
+            <hr>
+            <h4>Pose Controls</h4>
+            <button onclick="randomPose()">Random Bone Pose</button>
+            <hr>
+            <button onclick="takeScreenshot()" style="width:100%; background:#28a745;">Download Alpha PNG</button>
+        </div>
+
+        <div class="ui-panel bottom-bar">
+            Timeline: [------------------|------------------]
+        </div>
     </div>
 
-    <div id="result"></div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/FBXLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/libs/fflate.min.js"></script>
 
     <script>
-        async function fetchCharacter() {
-            const region = document.getElementById('region').value;
-            const realm = document.getElementById('realm').value.trim();
-            const name = document.getElementById('name').value.trim();
-            const resultDiv = document.getElementById('result');
+        let scene, camera, renderer, model, skeletonHelper, mixer;
 
-            if (!realm || !name) return alert("Please enter both Name and Realm.");
+        function init3D() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(45, 16/9, 0.1, 1000);
+            camera.position.set(0, 150, 400);
 
-            resultDiv.style.display = 'block';
-            resultDiv.innerHTML = "Connecting to Worker...";
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerWidth * (9/16)); // Maintain 16:9
+            renderer.setClearColor(0x000000, 0); // Transparent background for Alpha Screenshot
+            document.getElementById('three-canvas-container').appendChild(renderer.domElement);
 
-            try {
-                // YOUR WORKER URL
-                const workerUrl = `https://my-worker.whazorz.workers.dev/?name=${encodeURIComponent(name)}&realm=${encodeURIComponent(realm)}&region=${region}`;
-                
-                const response = await fetch(workerUrl);
-                const data = await response.json();
+            const light = new THREE.HemisphereLight(0xffffff, 0x444444);
+            scene.add(light);
 
-                if (data.error) {
-                    resultDiv.innerHTML = `<p class="error">Error: ${data.error}</p>`;
-                    return;
-                }
-
-                // Get 3D Render Asset
-                const assets = data.media.assets || [];
-                const renderUrl = assets.find(a => a.key === 'main-raw')?.value 
-                               || assets.find(a => a.key === 'main')?.value 
-                               || assets.find(a => a.key === 'avatar')?.value;
-
-                // Build Roster HTML
-                let rosterHtml = "";
-                if (data.roster && data.roster.length > 0) {
-                    rosterHtml = `<h3>Guild Roster: ${data.profile.guild.name}</h3><div class="guild-list">`;
-                    data.roster.slice(0, 100).forEach(member => {
-                        rosterHtml += `
-                            <div class="guild-item">
-                                <span>${member.character.name}</span>
-                                <span class="rank">Rank ${member.rank}</span>
-                            </div>`;
-                    });
-                    rosterHtml += `</div>`;
-                }
-
-                resultDiv.innerHTML = `
-                    <div class="render-container">
-                        <img src="${renderUrl}" class="render-img" alt="Character Render">
-                    </div>
-                    <h2>${data.profile.name}</h2>
-                    <p>${data.profile.race.name} ${data.profile.active_spec.name} ${data.profile.character_class.name}</p>
-                    <p>Level ${data.profile.level} | iLvl ${data.profile.average_item_level}</p>
-                    <hr style="border:0; border-top:1px solid #333">
-                    ${rosterHtml}
-                `;
-
-            } catch (err) {
-                resultDiv.innerHTML = `<p class="error">Worker Offline: ${err.message}</p>`;
-            }
+            animate();
         }
+
+        function loadModel(url) {
+            const loader = new THREE.FBXLoader();
+            loader.load(url, (fbx) => {
+                model = fbx;
+                model.scale.set(0.5, 0.5, 0.5);
+                scene.add(model);
+
+                // Add Skeleton Helper
+                skeletonHelper = new THREE.SkeletonHelper(model);
+                skeletonHelper.visible = false;
+                scene.add(skeletonHelper);
+                
+                // Set up Animations
+                mixer = new THREE.AnimationMixer(model);
+            });
+        }
+
+        function toggleBones() {
+            if (skeletonHelper) skeletonHelper.visible = document.getElementById('show-bones').checked;
+        }
+
+        function takeScreenshot() {
+            // Render one frame with alpha
+            renderer.render(scene, camera);
+            const dataURL = renderer.domElement.toDataURL("image/png");
+            const link = document.createElement('a');
+            link.download = 'character-alpha.png';
+            link.href = dataURL;
+            link.click();
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            if (mixer) mixer.update(0.016);
+            renderer.render(scene, camera);
+        }
+
+        init3D();
     </script>
 </body>
 </html>
