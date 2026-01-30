@@ -1,135 +1,207 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <title>WoW Character Studio v1.0</title>
     <style>
-        body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #111; color: white; font-family: sans-serif; }
-        
-        /* 16:9 Viewport in the Middle */
-        #viewport-container {
-            position: relative;
+        :root { --panel-bg: rgba(35, 35, 35, 0.95); --accent: #ffd100; --border: #444; }
+        body, html { margin: 0; padding: 0; height: 100%; background: #111; color: #eee; font-family: 'Inter', sans-serif; overflow: hidden; }
+
+        /* 16:9 Viewport Logic */
+        #studio-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
             width: 100vw;
-            height: 56.25vw; /* 16:9 Ratio */
-            max-height: 100vh;
-            max-width: 177.78vh;
-            margin: auto;
-            background: #222;
-            border: 2px solid #444;
+            height: 100vh;
+        }
+
+        #viewport {
+            position: relative;
+            width: 90vw;
+            height: 50.625vw; /* 16:9 Ratio */
+            max-width: 1600px;
+            max-height: 900px;
+            background: #181818;
+            background-image: 
+                linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px);
+            background-size: 50px 50px; /* Grid look */
+            border: 1px solid var(--border);
+            overflow: hidden;
             display: flex;
             justify-content: center;
             align-items: center;
         }
 
-        /* Interface Overlay (Modeling Software Style) */
-        .ui-panel {
-            position: absolute;
-            background: rgba(30, 30, 30, 0.9);
-            padding: 15px;
-            border: 1px solid #555;
-            font-size: 12px;
-            z-index: 10;
+        /* Character Layer */
+        #character-stage {
+            position: relative;
+            transition: transform 0.1s ease-out;
+            cursor: move;
         }
-        .left-panel { top: 10px; left: 10px; width: 200px; bottom: 10px; }
-        .right-panel { top: 10px; right: 10px; width: 220px; bottom: 10px; }
-        .bottom-bar { bottom: 10px; left: 220px; right: 230px; height: 40px; text-align: center; }
 
-        canvas { width: 100%; height: 100%; display: block; }
+        #char-img {
+            max-height: 80%;
+            filter: drop-shadow(0 0 20px rgba(0,0,0,0.5));
+            user-select: none;
+        }
+
+        /* UI Panels - Software Look */
+        .panel { position: absolute; background: var(--panel-bg); border: 1px solid var(--border); padding: 10px; font-size: 11px; z-index: 100; text-transform: uppercase; letter-spacing: 1px; }
         
-        button { background: #444; color: white; border: 1px solid #666; padding: 5px; cursor: pointer; margin: 2px; }
-        button:hover { background: #ffd100; color: black; }
+        .outliner { top: 20px; left: 20px; width: 180px; bottom: 80px; }
+        .properties { top: 20px; right: 20px; width: 200px; bottom: 80px; }
+        .timeline { bottom: 20px; left: 20px; right: 20px; height: 40px; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; }
+
+        h4 { margin: 0 0 10px 0; color: var(--accent); font-size: 10px; border-bottom: 1px solid var(--border); padding-bottom: 5px; }
+        .control-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; color: #888; }
+        
+        input[type="range"] { width: 100%; accent-color: var(--accent); }
+        button { width: 100%; background: #333; border: 1px solid #555; color: white; padding: 5px; cursor: pointer; margin-top: 5px; font-size: 10px; }
+        button:hover { background: var(--accent); color: black; }
+        
+        .search-trigger { background: var(--accent); color: black; font-weight: bold; margin-bottom: 20px; }
+
+        /* Mock Skeleton Overlays */
+        #skeleton-overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+            display: none;
+        }
     </style>
 </head>
 <body>
 
-    <div id="viewport-container">
-        <div id="three-canvas-container"></div>
-
-        <div class="ui-panel left-panel">
-            <h3>Scene Explorer</h3>
-            <div id="character-info">Character: None</div>
-            <hr>
-            <h4>Bones</h4>
-            <label><input type="checkbox" id="show-bones" onchange="toggleBones()"> Show Skeleton</label>
-            <div id="bone-list"></div>
+<div id="studio-container">
+    <div id="viewport">
+        <div id="character-stage">
+            <img id="char-img" src="" alt="">
+            <canvas id="skeleton-overlay"></canvas>
         </div>
 
-        <div class="ui-panel right-panel">
-            <h3>Animations</h3>
-            <button onclick="playAnim('Idle')">Idle</button>
-            <button onclick="playAnim('Attack')">Attack</button>
-            <button onclick="playAnim('Dance')">Dance</button>
-            <hr>
-            <h4>Pose Controls</h4>
-            <button onclick="randomPose()">Random Bone Pose</button>
-            <hr>
-            <button onclick="takeScreenshot()" style="width:100%; background:#28a745;">Download Alpha PNG</button>
+        <div class="panel outliner">
+            <h4>Scene Collection</h4>
+            <div style="color:var(--accent)">● Root_Character</div>
+            <div style="padding-left:10px">├─ Mesh_Main</div>
+            <div style="padding-left:10px">└─ Rig_Skeleton</div>
+            <hr style="border:0; border-top:1px solid #444; margin:15px 0;">
+            <h4>Fetch Data</h4>
+            <input type="text" id="name" placeholder="NAME" style="width:90%; background:#000; color:white; border:1px solid #444; margin-bottom:5px;">
+            <input type="text" id="realm" placeholder="REALM" style="width:90%; background:#000; color:white; border:1px solid #444; margin-bottom:5px;">
+            <button class="search-trigger" onclick="fetchChar()">EXECUTE FETCH</button>
         </div>
 
-        <div class="ui-panel bottom-bar">
-            Timeline: [------------------|------------------]
+        <div class="panel properties">
+            <h4>Transform</h4>
+            <div class="control-group">
+                <label>Scale</label>
+                <input type="range" id="scale" min="0.5" max="2" step="0.1" value="1" oninput="updateTransform()">
+                <label>Rotation Y (Tilt)</label>
+                <input type="range" id="rotate" min="-30" max="30" step="1" value="0" oninput="updateTransform()">
+            </div>
+
+            <h4>Skeleton (Mock)</h4>
+            <button onclick="toggleSkeleton()">Toggle Bone Viz</button>
+            <button onclick="randomPose()">Generate Random Pose</button>
+
+            <h4 style="margin-top:20px;">Render Output</h4>
+            <button style="background:#28a745;" onclick="downloadAlpha()">Download Alpha PNG</button>
+        </div>
+
+        <div class="panel timeline">
+            <div>PLAYBACK: [ |<  ||  >| ]</div>
+            <div id="status">STATUS: IDLE</div>
+            <div>FPS: 60.0</div>
         </div>
     </div>
+</div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/FBXLoader.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/libs/fflate.min.js"></script>
+<script>
+    let scale = 1;
+    let rotate = 0;
+    let currentData = null;
 
-    <script>
-        let scene, camera, renderer, model, skeletonHelper, mixer;
-
-        function init3D() {
-            scene = new THREE.Scene();
-            camera = new THREE.PerspectiveCamera(45, 16/9, 0.1, 1000);
-            camera.position.set(0, 150, 400);
-
-            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-            renderer.setSize(window.innerWidth, window.innerWidth * (9/16)); // Maintain 16:9
-            renderer.setClearColor(0x000000, 0); // Transparent background for Alpha Screenshot
-            document.getElementById('three-canvas-container').appendChild(renderer.domElement);
-
-            const light = new THREE.HemisphereLight(0xffffff, 0x444444);
-            scene.add(light);
-
-            animate();
+    async function fetchChar() {
+        const name = document.getElementById('name').value;
+        const realm = document.getElementById('realm').value;
+        const status = document.getElementById('status');
+        
+        status.innerText = "STATUS: FETCHING...";
+        
+        try {
+            // Your Cloudflare Worker URL
+            const res = await fetch(`https://my-worker.whazorz.workers.dev/?name=${name}&realm=${realm}&region=eu`);
+            const data = await res.json();
+            
+            if(data.media) {
+                const imgUrl = data.media.assets.find(a => a.key === "main-raw")?.value || data.media.assets[0].value;
+                document.getElementById('char-img').src = imgUrl;
+                status.innerText = "STATUS: READY";
+                currentData = data;
+            }
+        } catch(e) {
+            status.innerText = "STATUS: ERROR";
         }
+    }
 
-        function loadModel(url) {
-            const loader = new THREE.FBXLoader();
-            loader.load(url, (fbx) => {
-                model = fbx;
-                model.scale.set(0.5, 0.5, 0.5);
-                scene.add(model);
+    function updateTransform() {
+        scale = document.getElementById('scale').value;
+        rotate = document.getElementById('rotate').value;
+        const stage = document.getElementById('character-stage');
+        stage.style.transform = `scale(${scale}) perspective(500px) rotateY(${rotate}deg)`;
+    }
 
-                // Add Skeleton Helper
-                skeletonHelper = new THREE.SkeletonHelper(model);
-                skeletonHelper.visible = false;
-                scene.add(skeletonHelper);
-                
-                // Set up Animations
-                mixer = new THREE.AnimationMixer(model);
-            });
-        }
+    function toggleSkeleton() {
+        const canvas = document.getElementById('skeleton-overlay');
+        canvas.style.display = canvas.style.display === 'block' ? 'none' : 'block';
+        if(canvas.style.display === 'block') drawMockSkeleton();
+    }
 
-        function toggleBones() {
-            if (skeletonHelper) skeletonHelper.visible = document.getElementById('show-bones').checked;
-        }
+    function drawMockSkeleton() {
+        const canvas = document.getElementById('skeleton-overlay');
+        const ctx = canvas.getContext('2d');
+        const img = document.getElementById('char-img');
+        canvas.width = img.clientWidth;
+        canvas.height = img.clientHeight;
+        
+        ctx.strokeStyle = '#00ff00';
+        ctx.lineWidth = 2;
+        // Mocking bone lines over the 2D image
+        ctx.beginPath();
+        ctx.moveTo(canvas.width/2, canvas.height * 0.2); // Neck
+        ctx.lineTo(canvas.width/2, canvas.height * 0.5); // Spine
+        ctx.lineTo(canvas.width*0.4, canvas.height * 0.8); // L-Leg
+        ctx.moveTo(canvas.width/2, canvas.height * 0.5);
+        ctx.lineTo(canvas.width*0.6, canvas.height * 0.8); // R-Leg
+        ctx.stroke();
+    }
 
-        function takeScreenshot() {
-            // Render one frame with alpha
-            renderer.render(scene, camera);
-            const dataURL = renderer.domElement.toDataURL("image/png");
-            const link = document.createElement('a');
-            link.download = 'character-alpha.png';
-            link.href = dataURL;
-            link.click();
-        }
+    function randomPose() {
+        // Since it's 2D, we randomize the "Pose" by slightly shearing and tilting
+        const randomSkew = (Math.random() - 0.5) * 10;
+        const randomRot = (Math.random() - 0.5) * 40;
+        document.getElementById('character-stage').style.transform = 
+            `scale(${scale}) rotate(${randomSkew}deg) rotateY(${randomRot}deg)`;
+        document.getElementById('status').innerText = "STATUS: POSE_GENERATED";
+    }
 
-        function animate() {
-            requestAnimationFrame(animate);
-            if (mixer) mixer.update(0.016);
-            renderer.render(scene, camera);
-        }
+    function downloadAlpha() {
+        const img = document.getElementById('char-img');
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        ctx.drawImage(img, 0, 0);
+        
+        const link = document.createElement('a');
+        link.download = 'render_alpha.png';
+        link.href = canvas.toDataURL();
+        link.click();
+    }
+</script>
 
-        init3D();
-    </script>
 </body>
 </html>
