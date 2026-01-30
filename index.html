@@ -1,99 +1,216 @@
+This index.html is the "Final Boss" of the project. It uses Three.js to create a 3D stage with UnrealBloomPass (for the epic glow) and a 16:9 Viewport designed like professional 3D software.
+
+It uses your Cloudflare Worker as a proxy to bypass Blizzard's image CORS, allowing the character to be loaded as a high-quality 3D texture that reacts to light.
+
+Complete index.html
+HTML
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
     <title>WoW Ultra 3D Studio</title>
     <style>
-        body, html { margin: 0; background: #000; color: #555; font-family: monospace; overflow: hidden; }
-        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; border: 1px solid #222; box-sizing: border-box; }
-        .panel { position: absolute; background: rgba(10,10,10,0.9); border: 1px solid #333; padding: 10px; pointer-events: all; width: 180px; }
-        .left { top: 20px; left: 20px; bottom: 60px; }
-        .right { top: 20px; right: 20px; bottom: 60px; }
-        input, button { width: 100%; background: #000; border: 1px solid #444; color: #fff; margin-top: 5px; padding: 5px; cursor: pointer; }
-        #viewport { width: 100vw; height: 56.25vw; max-height: 100vh; margin: auto; display: block; }
+        :root { --panel-bg: rgba(15, 15, 15, 0.95); --accent: #ffd100; --border: #333; }
+        body, html { margin: 0; padding: 0; height: 100%; background: #050505; color: #eee; font-family: 'Segoe UI', monospace; overflow: hidden; }
+
+        /* Professional 16:9 Viewport */
+        #viewport-container {
+            position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 90vw; height: 50.625vw; /* 16:9 */
+            max-width: 1600px; max-height: 900px;
+            background: #000; border: 1px solid var(--border);
+            box-shadow: 0 0 100px rgba(0,0,0,1);
+            overflow: hidden; cursor: crosshair;
+        }
+
+        /* 3D Canvas */
+        #three-canvas { width: 100%; height: 100%; display: block; }
+
+        /* UI Panels (Modeling Software Look) */
+        .ui-panel { position: absolute; background: var(--panel-bg); border: 1px solid var(--border); padding: 12px; z-index: 100; pointer-events: all; }
+        .outliner { top: 15px; left: 15px; width: 180px; bottom: 80px; }
+        .properties { top: 15px; right: 15px; width: 220px; bottom: 80px; }
+        .timeline { bottom: 15px; left: 15px; right: 15px; height: 40px; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; font-size: 11px; }
+
+        h4 { margin: 0 0 10px 0; color: var(--accent); font-size: 11px; text-transform: uppercase; border-bottom: 1px solid var(--border); padding-bottom: 5px; }
+        input, select, button { width: 100%; background: #000; border: 1px solid #444; color: #fff; margin-bottom: 8px; padding: 6px; font-size: 11px; border-radius: 3px; }
+        button { background: #222; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        button:hover { background: var(--accent); color: #000; border-color: var(--accent); }
+        label { font-size: 10px; color: #888; display: block; margin-bottom: 4px; }
+        input[type="range"] { accent-color: var(--accent); }
+
+        .status-dot { height: 8px; width: 8px; background-color: #555; border-radius: 50%; display: inline-block; margin-right: 5px; }
+        .status-ready { background-color: #28a745; box-shadow: 0 0 5px #28a745; }
     </style>
 </head>
 <body>
-    <div id="ui-layer">
-        <div class="panel left">
-            <h4 style="color:#ffd100">SCENE_EXPLORER</h4>
-            <input id="name" placeholder="CHAR_NAME">
-            <input id="realm" placeholder="REALM">
-            <button onclick="loadChar()">LOAD_ENTITY</button>
-        </div>
-        <div class="panel right">
-            <h4 style="color:#ffd100">POST_PROCESSING</h4>
-            <label>GLOW_STRENGTH</label>
-            <input type="range" id="bloom" min="0" max="3" step="0.1" value="1.5">
-            <button onclick="jitter()">JITTER_POSE</button>
-            <button style="background:#28a745" onclick="snap()">ALPHA_RENDER</button>
-        </div>
+
+<div id="viewport-container">
+    <canvas id="three-canvas"></canvas>
+
+    <div class="ui-panel outliner">
+        <h4>Scene Hierarchy</h4>
+        <div style="color:var(--accent)">▼ World_Scene</div>
+        <div style="padding-left:10px">├─ ☼ AmbientLight</div>
+        <div style="padding-left:10px">├─ ☼ PointLight_Main</div>
+        <div style="padding-left:10px; color:#fff">└─ ▣ Character_Mesh</div>
+        <hr style="border:0; border-top:1px solid #333; margin:15px 0;">
+        <select id="region"><option value="eu">EU (Europe)</option><option value="us">US (Americas)</option></select>
+        <input type="text" id="name" placeholder="CHARACTER_NAME">
+        <input type="text" id="realm" placeholder="REALM_NAME">
+        <button onclick="fetchCharacter()" style="background:var(--accent); color:#000;">EXECUTE_LOAD</button>
     </div>
-    <canvas id="viewport"></canvas>
 
-    <script type="importmap">
-    { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js", "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/" } }
-    </script>
+    <div class="ui-panel properties">
+        <h4>Post Processing</h4>
+        <label>Glow (Bloom) Intensity</label>
+        <input type="range" id="bloomStrength" min="0" max="4" step="0.1" value="1.5">
+        
+        <h4 style="margin-top:20px;">Rigging / Pose</h4>
+        <label>Tilt Sensitivity</label>
+        <input type="range" id="tilt" min="0" max="1" step="0.1" value="0.5">
+        <button onclick="jitterPose()">Random Bone Jitter</button>
+        <button id="skeletonBtn" onclick="toggleSkeleton()">Show Skeleton: OFF</button>
 
-    <script type="module">
-        import * as THREE from 'three';
-        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
-        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+        <h4 style="margin-top:20px;">Output</h4>
+        <button style="background:#28a745; color:white; border:none;" onclick="downloadAlpha()">RENDER ALPHA PNG</button>
+    </div>
 
-        let scene, camera, renderer, composer, bloomPass, character;
-        const canvas = document.querySelector('#viewport');
+    <div class="ui-panel timeline">
+        <div><span id="status-dot" class="status-dot"></span> <span id="status-text">SYSTEM: IDLE</span></div>
+        <div style="color:var(--accent)">00:00:00:01 / 60 FPS</div>
+        <div>ALPHA_ENABLED: TRUE</div>
+    </div>
+</div>
 
-        function init() {
-            scene = new THREE.Scene();
-            camera = new THREE.PerspectiveCamera(40, 16/9, 0.1, 1000);
-            camera.position.z = 5;
+<script type="importmap">
+{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js", "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/" } }
+</script>
 
-            renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
-            renderer.setSize(window.innerWidth, window.innerWidth * (9/16));
+<script type="module">
+    import * as THREE from 'three';
+    import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+    import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+    import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+    import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
-            // Post Processing (Bloom)
-            composer = new EffectComposer(renderer);
-            composer.addPass(new RenderPass(scene, camera));
-            bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
-            composer.addPass(bloomPass);
+    let scene, camera, renderer, composer, bloomPass, charMesh, pointLight, skeletonHelper;
+    const canvas = document.querySelector('#three-canvas');
+    const workerUrl = "https://my-worker.whazorz.workers.dev"; // Your Worker URL
 
-            scene.add(new THREE.AmbientLight(0xffffff, 1));
-            animate();
-        }
+    function init() {
+        scene = new THREE.Scene();
+        camera = new THREE.PerspectiveCamera(35, 16/9, 0.1, 1000);
+        camera.position.z = 6;
 
-        window.loadChar = async () => {
-            const name = document.querySelector('#name').value;
-            const realm = document.querySelector('#realm').value;
-            const res = await fetch(`https://my-worker.whazorz.workers.dev/?name=${name}&realm=${realm}`);
+        renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setSize(canvas.clientWidth, canvas.clientHeight);
+
+        // POST PROCESSING
+        composer = new EffectComposer(renderer);
+        composer.addPass(new RenderPass(scene, camera));
+        
+        bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
+        composer.addPass(bloomPass);
+        composer.addPass(new OutputPass());
+
+        // LIGHTING
+        scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+        pointLight = new THREE.PointLight(0xffffff, 50, 100);
+        pointLight.position.set(2, 2, 4);
+        scene.add(pointLight);
+
+        window.addEventListener('mousemove', onMouseMove);
+        animate();
+    }
+
+    window.fetchCharacter = async () => {
+        const name = document.getElementById('name').value.trim();
+        const realm = document.getElementById('realm').value.trim();
+        const region = document.getElementById('region').value;
+        const statusText = document.getElementById('status-text');
+        const statusDot = document.getElementById('status-dot');
+
+        if (!name || !realm) return alert("Enter Details");
+
+        statusText.innerText = "SYSTEM: FETCHING_ASSETS...";
+        
+        try {
+            const res = await fetch(`${workerUrl}/?name=${name}&realm=${realm}&region=${region}`);
             const data = await res.json();
             
-            const raw = data.media.assets.find(a => a.key === 'main-raw')?.value;
-            const proxied = `https://my-worker.whazorz.workers.dev/?proxyUrl=${encodeURIComponent(raw)}`;
+            if (data.error) throw new Error(data.error);
 
-            new THREE.TextureLoader().load(proxied, (tex) => {
-                if(character) scene.remove(character);
+            const rawImg = data.media.assets.find(a => a.key === 'main-raw')?.value || data.media.assets[0].value;
+            // Use Worker as Proxy to fix Image CORS
+            const proxiedImg = `${workerUrl}/?proxyUrl=${encodeURIComponent(rawImg)}`;
+
+            new THREE.TextureLoader().setCrossOrigin('anonymous').load(proxiedImg, (tex) => {
+                if (charMesh) scene.remove(charMesh);
+                if (skeletonHelper) scene.remove(skeletonHelper);
+
                 const aspect = tex.image.width / tex.image.height;
-                character = new THREE.Mesh(new THREE.PlaneGeometry(3 * aspect, 3), new THREE.MeshBasicMaterial({ map: tex, transparent: true }));
-                scene.add(character);
+                const geometry = new THREE.PlaneGeometry(3.5 * aspect, 3.5);
+                const material = new THREE.MeshPhongMaterial({ map: tex, transparent: true, shininess: 80 });
+
+                charMesh = new THREE.Mesh(geometry, material);
+                scene.add(charMesh);
+
+                // Mock Skeleton
+                skeletonHelper = new THREE.GridHelper(2, 10, 0x00ff00, 0x222222);
+                skeletonHelper.rotation.x = Math.PI / 2;
+                skeletonHelper.visible = false;
+                scene.add(skeletonHelper);
+
+                statusText.innerText = `READY: ${data.profile.name.toUpperCase()}`;
+                statusDot.classList.add('status-ready');
             });
-        };
-
-        window.jitter = () => { if(character) character.rotation.y += 0.1; };
-        window.snap = () => {
-            composer.render();
-            const link = document.createElement('a');
-            link.download = 'alpha_render.png';
-            link.href = canvas.toDataURL();
-            link.click();
-        };
-
-        function animate() {
-            requestAnimationFrame(animate);
-            bloomPass.strength = document.querySelector('#bloom').value;
-            composer.render();
+        } catch (e) {
+            statusText.innerText = `ERROR: ${e.message.toUpperCase()}`;
+            statusDot.classList.remove('status-ready');
         }
+    };
 
-        init();
-    </script>
+    function onMouseMove(e) {
+        if (!charMesh) return;
+        const tiltLevel = document.getElementById('tilt').value;
+        const x = (e.clientX / window.innerWidth) - 0.5;
+        const y = (e.clientY / window.innerHeight) - 0.5;
+
+        charMesh.rotation.y = x * tiltLevel;
+        charMesh.rotation.x = -y * (tiltLevel * 0.5);
+        pointLight.position.set(x * 10, -y * 10, 5);
+    }
+
+    window.jitterPose = () => {
+        if (!charMesh) return;
+        charMesh.scale.set(1 + Math.random()*0.05, 1 + Math.random()*0.05, 1);
+        charMesh.rotation.z = (Math.random() - 0.5) * 0.05;
+    };
+
+    window.toggleSkeleton = () => {
+        if (!skeletonHelper) return;
+        skeletonHelper.visible = !skeletonHelper.visible;
+        document.getElementById('skeletonBtn').innerText = `Show Skeleton: ${skeletonHelper.visible ? 'ON' : 'OFF'}`;
+    };
+
+    window.downloadAlpha = () => {
+        composer.render();
+        const link = document.createElement('a');
+        link.download = '3d_render_alpha.png';
+        link.href = canvas.toDataURL("image/png");
+        link.click();
+    };
+
+    function animate() {
+        requestAnimationFrame(animate);
+        bloomPass.strength = document.getElementById('bloomStrength').value;
+        composer.render();
+    }
+
+    init();
+</script>
 </body>
 </html>
