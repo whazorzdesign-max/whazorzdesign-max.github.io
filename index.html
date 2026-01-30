@@ -66,48 +66,42 @@ HTML
 
     <div id="result"></div>
 
-    <script>
-        async function fetchCharacter() {
-            const resultDiv = document.getElementById('result');
-            const name = document.getElementById('name').value.trim();
-            const realm = document.getElementById('realm').value.trim();
+<script>
+async function fetchCharacter() {
+    const resultDiv = document.getElementById('result');
+    const name = document.getElementById('name').value;
+    const realm = document.getElementById('realm').value;
 
-            if (!name || !realm) {
-                alert("Please enter both name and realm.");
-                return;
-            }
+    resultDiv.style.display = 'block';
+    resultDiv.innerHTML = "Loading character...";
 
-            resultDiv.style.display = 'block';
-            resultDiv.innerHTML = "Searching the mists...";
+    try {
+        const response = await fetch(`https://my-worker.whazorz.workers.dev/?name=${name}&realm=${realm}`);
+        const data = await response.json();
 
-            // YOUR WORKER URL
-            const workerUrl = "https://my-worker.whazorz.workers.dev";
-
-            try {
-                const response = await fetch(`${workerUrl}/?name=${encodeURIComponent(name)}&realm=${encodeURIComponent(realm)}`);
-                const data = await response.json();
-
-                if (!response.ok || data.error) {
-                    resultDiv.innerHTML = `<p class="error">Error: ${data.error || 'Character not found'}</p>`;
-                    return;
-                }
-
-                // Displaying the data
-                resultDiv.innerHTML = `
-                    <div class="success">
-                        <h2>${data.name}</h2>
-                        <div class="stat"><strong>Level:</strong> ${data.level}</div>
-                        <div class="stat"><strong>Race:</strong> ${data.race.name}</div>
-                        <div class="stat"><strong>Class:</strong> ${data.character_class.name}</div>
-                        <div class="stat"><strong>Spec:</strong> ${data.active_spec.name}</div>
-                        <div class="stat"><strong>Average iLvl:</strong> ${data.average_item_level}</div>
-                        <div class="stat"><strong>Achievement Points:</strong> ${data.achievement_points}</div>
-                    </div>
-                `;
-            } catch (err) {
-                resultDiv.innerHTML = `<p class="error">Network error: ${err.message}</p>`;
-            }
+        if (data.error || !data.profile.name) {
+            resultDiv.innerHTML = "Character not found.";
+            return;
         }
-    </script>
+
+        // Find the "main" raw render or the avatar
+        const assets = data.media.assets || [];
+        const mainRender = assets.find(a => a.key === 'main-raw')?.value || assets.find(a => a.key === 'main')?.value;
+        const fallbackAvatar = assets.find(a => a.key === 'avatar')?.value;
+
+        resultDiv.innerHTML = `
+            <div style="text-align:center">
+                <h2>${data.profile.name}</h2>
+                <p>${data.profile.character_class.name} - ${data.profile.active_spec.name}</p>
+                <img src="${mainRender || fallbackAvatar}" style="max-width: 100%; height: auto; border-radius: 10px;">
+                <p>iLvl: ${data.profile.average_item_level}</p>
+            </div>
+        `;
+    } catch (e) {
+        resultDiv.innerHTML = "Error: Check console.";
+        console.error(e);
+    }
+}
+</script>
 </body>
 </html>
