@@ -155,11 +155,30 @@
     };
 
     function animate() {
-        requestAnimationFrame(animate);
-        bloomPass.strength = document.querySelector('#bloom').value || 1.5;
-        if(model) model.material.emissiveIntensity = document.querySelector('#ao-range').value;
-        composer.render();
+    requestAnimationFrame(animate);
+    
+    // Pārbaudām, vai elementi pastāv pirms nolasa vērtības
+    const bloomInput = document.getElementById('bloom');
+    const aoInput = document.getElementById('ao-strength');
+    
+    if (bloomPass && bloomInput) {
+        bloomPass.strength = bloomInput.value;
     }
+    
+    if (charMesh && aoInput) {
+        // Pārliecināmies, ka materiāls ir ielādēts
+        charMesh.material.emissiveIntensity = aoInput.value;
+    }
+
+    // Atjauninām rāmi (frame count), ja tāds elements ir
+    const frameEl = document.getElementById('frame-count');
+    if (frameEl) {
+        frame++;
+        frameEl.innerText = frame;
+    }
+
+    composer.render();
+}
     init();
 </script>
 </body>
