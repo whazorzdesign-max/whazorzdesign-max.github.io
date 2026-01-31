@@ -24,18 +24,17 @@
         body, html { margin: 0; padding: 0; height: 100%; background: #000; color: #fff; font-family: var(--font); overflow: hidden; }
         #studio-layout { display: grid; grid-template-columns: 320px 1fr 320px; height: 100vh; width: 100vw; }
         #viewport-container { position: relative; background: radial-gradient(circle at center, #111 0%, #000 100%); overflow: hidden; border-left: 1px solid #222; border-right: 1px solid #222; }
-        .sidebar { background: var(--panel-bg); backdrop-filter: blur(30px); padding: 30px; display: flex; flex-direction: column; gap: 25px; z-index: 10; border-right: 1px solid #222; }
-        .sidebar-right { border-right: none; border-left: 1px solid #222; }
+        .sidebar { background: var(--panel-bg); backdrop-filter: blur(30px); padding: 30px; display: flex; flex-direction: column; gap: 25px; z-index: 10; }
         h2 { font-size: 11px; letter-spacing: 4px; color: var(--accent); margin: 0; text-transform: uppercase; border-bottom: 1px solid #333; padding-bottom: 10px; }
         .control-block { background: var(--glass); padding: 15px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.05); }
         label { display: block; font-size: 10px; text-transform: uppercase; color: #888; margin-bottom: 10px; }
         input[type="text"] { width: 100%; background: #111; border: 1px solid #333; color: #fff; padding: 12px; border-radius: 4px; margin-bottom: 10px; box-sizing: border-box; font-family: monospace; }
         input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer; margin-bottom: 5px; }
         .btn-generate { 
-            width: 100%; background: var(--accent); color: #000; border: none; padding: 15px; border-radius: 4px; font-weight: 900; font-size: 12px; cursor: pointer; text-transform: uppercase; transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            width: 100%; background: var(--accent); color: #000; border: none; padding: 15px; border-radius: 4px; font-weight: 900; font-size: 12px; cursor: pointer; text-transform: uppercase; transition: 0.3s;
         }
-        .btn-generate:hover { transform: scale(1.02); filter: brightness(1.2); box-shadow: 0 0 20px rgba(0, 242, 255, 0.3); }
-        #hud-status { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); font-family: monospace; font-size: 10px; color: #555; letter-spacing: 2px; }
+        .btn-generate:hover { transform: scale(1.02); filter: brightness(1.2); }
+        #hud-status { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); font-family: monospace; font-size: 10px; color: #555; letter-spacing: 2px; text-align: center;}
     </style>
 </head>
 <body>
@@ -45,8 +44,8 @@
         <h2>Neural Import</h2>
         <div class="control-block">
             <label>Biological Identity</label>
-            <input type="text" id="name" placeholder="CHARACTER NAME">
-            <input type="text" id="realm" placeholder="REALM (e.g. Draenor)">
+            <input type="text" id="name" placeholder="NAME">
+            <input type="text" id="realm" placeholder="REALM">
             <button class="btn-generate" onclick="window.fetchChar()">Construct 3D Render</button>
         </div>
         
@@ -63,18 +62,18 @@
         <div id="hud-status">SYSTEM.READY // 2.5D_EXTRUSION_ACTIVE</div>
     </div>
 
-    <div class="sidebar sidebar-right">
+    <div class="sidebar">
         <h2>Photon Studio</h2>
         <div class="control-block">
-            <label>Main Light</label>
+            <label>Light Intensity</label>
             <input type="range" id="lightIntensity" min="0" max="500" value="150">
-            <label>Light Arc</label>
+            <label>Light Position X</label>
             <input type="range" id="lightX" min="-15" max="15" value="5">
         </div>
 
         <h2>Environment</h2>
         <div class="control-block">
-            <label>Glow Intensity</label>
+            <label>Ambient Glow</label>
             <input type="range" id="ambient" min="0" max="10" step="0.1" value="2.0">
             <button onclick="window.resetLight()" style="width:100%; background:transparent; border:1px solid #444; color:#666; padding:8px; font-size:9px; cursor:pointer; margin-top:10px;">RESET_PHOTONS</button>
         </div>
@@ -84,12 +83,12 @@
 <script type="module">
     import * as THREE from 'three';
 
-    let scene, camera, renderer, container, pointLight, ambientLight;
+    let scene, camera, renderer, pointLight, ambientLight;
     let frontMesh, backMesh, characterGroup;
     const viewport = document.getElementById('viewport-container');
     
+    // NOMAINI ŠO URL UZ SAVU
     const WORKER_URL = "https://my-worker.whazorz.workers.dev/";
-    const PROXY = "https://api.allorigins.win/raw?url=";
 
     function init() {
         scene = new THREE.Scene();
@@ -100,13 +99,11 @@
         renderer.setSize(viewport.clientWidth, viewport.clientHeight);
         renderer.setPixelRatio(window.devicePixelRatio);
         renderer.shadowMap.enabled = true;
-        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         viewport.appendChild(renderer.domElement);
 
         characterGroup = new THREE.Group();
         scene.add(characterGroup);
 
-        // Lighting logic from Asset Generator
         ambientLight = new THREE.AmbientLight(0xffffff, 2.0);
         scene.add(ambientLight);
 
@@ -115,7 +112,6 @@
         pointLight.castShadow = true;
         scene.add(pointLight);
 
-        // Floor Shadow
         const floor = new THREE.Mesh(
             new THREE.PlaneGeometry(100, 100),
             new THREE.ShadowMaterial({ opacity: 0.5 })
@@ -134,39 +130,35 @@
         const status = document.getElementById('hud-status');
         
         if(!name || !realm) return;
-        status.innerHTML = `<span style="color:var(--accent)">SCANNING NEURAL DATA...</span>`;
+        status.innerHTML = `<span style="color:var(--accent)">INITIALIZING NEURAL LINK...</span>`;
 
         try {
             const res = await fetch(`${WORKER_URL}?name=${encodeURIComponent(name)}&realm=${encodeURIComponent(realm)}`);
             const data = await res.json();
-            if (data.error) throw new Error(data.error);
-
-            const rawUrl = data.media.assets.find(a => a.key === "main-raw")?.value || data.media.assets[0].value;
-            createAsset3D(PROXY + encodeURIComponent(rawUrl));
-            status.innerText = "CONSTRUCTION SUCCESSFUL";
+            
+            if (data.image) {
+                loadModel(data.image);
+                status.innerText = "CONSTRUCTION SUCCESSFUL";
+            } else {
+                throw new Error("Invalid response");
+            }
         } catch(e) {
-            status.innerText = "LINK_FAILURE: " + e.message;
+            status.innerText = "LINK_FAILURE: DATA_NODE_OFFLINE";
         }
     }
 
-    function createAsset3D(url) {
+    function loadModel(base64Data) {
         const loader = new THREE.TextureLoader();
-        loader.setCrossOrigin('anonymous');
-        
-        loader.load(url, (texture) => {
-            // Clear existing
+        loader.load(base64Data, (texture) => {
             while(characterGroup.children.length > 0) characterGroup.remove(characterGroup.children[0]);
 
             const geometry = new THREE.PlaneGeometry(4, 5);
-            
-            // Principles from 2D-to-3D: Create a front and back layer with offset to simulate thickness
             const material = new THREE.MeshStandardMaterial({ 
                 map: texture, 
                 transparent: true, 
                 alphaTest: 0.5,
-                side: THREE.FrontSide,
-                metalness: 0.5,
-                roughness: 0.2
+                metalness: 0.4,
+                roughness: 0.3
             });
 
             frontMesh = new THREE.Mesh(geometry, material);
@@ -176,8 +168,6 @@
             frontMesh.castShadow = true;
             characterGroup.add(frontMesh);
             characterGroup.add(backMesh);
-            
-            characterGroup.position.y = 0;
         });
     }
 
@@ -189,14 +179,11 @@
             const depthVal = document.getElementById('depth').value;
             
             characterGroup.scale.set(scaleVal, scaleVal, scaleVal);
-            
-            // The "Sandwich" effect - spacing the front and back
             frontMesh.position.z = depthVal / 2;
             backMesh.position.z = -depthVal / 2;
 
-            // Soft auto-rotation
             characterGroup.rotation.y = Math.sin(Date.now() * 0.001) * 0.2;
-            characterGroup.position.y = Math.sin(Date.now() * 0.002) * 0.15;
+            characterGroup.position.y = Math.sin(Date.now() * 0.002) * 0.1;
         }
 
         pointLight.intensity = document.getElementById('lightIntensity').value;
