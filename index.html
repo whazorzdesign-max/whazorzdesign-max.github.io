@@ -78,48 +78,57 @@
     }
 
     window.startFetch = async () => {
-        const n = document.querySelector('#name').value;
-        const r = document.querySelector('#realm').value;
-        const bar = document.querySelector('#load-container');
-        const fill = document.querySelector('#bar-fill');
-        const txt = document.querySelector('#load-text');
+    const n = document.querySelector('#name').value;
+    const r = document.querySelector('#realm').value;
+    const bar = document.querySelector('#load-container');
+    const fill = document.querySelector('#bar-fill');
+    const txt = document.querySelector('#load-text');
 
-        bar.style.display = 'block';
-        fill.style.width = '10%';
-        txt.innerText = "QUERYING WORKER...";
+    bar.style.display = 'block';
+    fill.style.width = '10%';
+    txt.innerText = "QUERYING WORKER...";
 
-        try {
-            const res = await fetch(`${worker}/?name=${encodeURIComponent(n)}&realm=${encodeURIComponent(r)}`);
-            const data = await res.json();
-            fill.style.width = '40%';
-            txt.innerText = "ASSETS FOUND, PROXYING IMAGE...";
+    try {
+        const res = await fetch(`${worker}/?name=${n}&realm=${r}`);
+        const data = await res.json();
+        
+        const rawImageUrl = data.media.assets.find(a => a.key === 'main-raw')?.value;
+        
+        // Use Headers to send the proxy target
+        const manager = new THREE.LoadingManager();
+        manager.onProgress = (url, loaded, total) => {
+            const p = (loaded / total) * 50 + 50;
+            fill.style.width = p + '%';
+            txt.innerText = "3D TEXTURE LOAD: " + Math.round(p) + "%";
+        };
 
-            const raw = data.media.assets.find(a => a.key === 'main-raw')?.value;
-            // The secret sauce: Double encode the proxyUrl to stop Cloudflare 400 errors
-            const proxied = `${worker}/?proxyUrl=${encodeURIComponent(encodeURIComponent(raw))}`;
-
-            // Three.js Loader with Progress
-            const manager = new THREE.LoadingManager();
-            manager.onProgress = (url, loaded, total) => {
-                const p = (loaded / total) * 60 + 40; // Starts from 40%
-                fill.style.width = p + '%';
-                txt.innerText = "DOWNLOADING TEXTURE: " + Math.round(p) + "%";
-            };
-
-            new THREE.TextureLoader(manager).load(proxied, (tex) => {
+        const loader = new THREE.TextureLoader(manager);
+        
+        // Pass the target URL in a custom header 'X-Proxy-Target'
+        // We use the worker URL itself as the fetch target
+        loader.load(
+            worker, 
+            (tex) => {
                 if(char) scene.remove(char);
                 const aspect = tex.image.width / tex.image.height;
-                char = new THREE.Mesh(new THREE.PlaneGeometry(3.5 * aspect, 3.5), new THREE.MeshPhongMaterial({ map: tex, transparent: true, shininess: 50 }));
+                char = new THREE.Mesh(
+                    new THREE.PlaneGeometry(3.5 * aspect, 3.5), 
+                    new THREE.MeshPhongMaterial({ map: tex, transparent: true, shininess: 40 })
+                );
                 scene.add(char);
-                
                 txt.innerText = "RENDER COMPLETE";
-                setTimeout(() => bar.style.display = 'none', 1000);
-            });
-        } catch (e) {
-            txt.innerText = "ERROR: " + e.message;
-            fill.style.background = "red";
-        }
-    };
+                setTimeout(() => bar.style.display = 'none', 1500);
+            },
+            undefined,
+            (err) => { throw new Error("Texture Proxy Failed"); },
+            { "X-Proxy-Target": rawImageUrl } // THIS HEADER FIXES THE 400 ERROR
+        );
+
+    } catch (e) {
+        txt.innerText = "CRITICAL ERROR: " + e.message;
+        fill.style.background = "red";
+    }
+};
 
     window.jitter = () => { if(char) char.rotation.y += (Math.random()-0.5); };
     window.snap = () => {

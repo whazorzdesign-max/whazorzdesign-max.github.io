@@ -3,23 +3,21 @@
     const corsHeaders = {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type",
+      "Access-Control-Allow-Headers": "Content-Type, X-Proxy-Target",
     };
 
     if (request.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
     const url = new URL(request.url);
     
-    // --- IMAGE PROXY FEATURE ---
-    const proxyUrl = url.searchParams.get('proxyUrl');
-    if (proxyUrl) {
-      try {
-        // Double-decode check to handle weird Blizzard URL encodings
-        const target = decodeURIComponent(proxyUrl);
-        const imageRes = await fetch(target);
-        
-        if (!imageRes.ok) return new Response("Blizzard rejected image", { status: 404, headers: corsHeaders });
+    // Check for Proxy Target in Header instead of URL param
+    const proxyTarget = request.headers.get("X-Proxy-Target");
 
+    if (proxyTarget) {
+      try {
+        const imageRes = await fetch(proxyTarget);
+        if (!imageRes.ok) throw new Error("Blizzard Image Fetch Failed");
+        
         const contentType = imageRes.headers.get("Content-Type");
         return new Response(await imageRes.arrayBuffer(), {
           headers: { ...corsHeaders, "Content-Type": contentType || "image/png" }
@@ -29,7 +27,7 @@
       }
     }
 
-    // --- BLIZZARD API FEATURE ---
+    // --- STANDARD API LOGIC ---
     try {
       const name = url.searchParams.get('name')?.toLowerCase().trim();
       const realm = url.searchParams.get('realm')?.toLowerCase().trim().replace(/\s+/g, '-');
@@ -52,10 +50,7 @@
         })
       ]);
 
-      const profile = await profileRes.json();
-      const media = await mediaRes.json();
-
-      return new Response(JSON.stringify({ profile, media }), {
+      return new Response(JSON.stringify({ profile: await profileRes.json(), media: await mediaRes.json() }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" }
       });
     } catch (err) {
