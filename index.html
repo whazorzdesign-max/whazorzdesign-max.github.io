@@ -378,54 +378,6 @@
 
 
 
-    function animate() {
-
-        requestAnimationFrame(animate);
-
-        
-
-        // Update values from UI
-
-        if(charMesh) {
-
-            const scale = document.getElementById('scale').value;
-
-            charMesh.scale.set(scale, scale, scale);
-
-            
-
-            // Subtle "AI" floating animation
-
-            charMesh.position.y = Math.sin(Date.now() * 0.001) * 0.1;
-
-            charMesh.rotation.y = Math.sin(Date.now() * 0.0005) * 0.1;
-
-
-
-            // Surface Depth Simulation (Metalness adjustment)
-
-            charMesh.material.metalness = document.getElementById('depth').value;
-
-        }
-
-
-
-        // Lighting Updates
-
-        pointLight.intensity = document.getElementById('lightIntensity').value;
-
-        pointLight.position.x = document.getElementById('lightX').value;
-
-        ambientLight.intensity = document.getElementById('ambient').value;
-
-        
-
-        renderer.render(scene, camera);
-
-    }
-
-
-
     window.resetLight = () => {
 
         document.getElementById('lightIntensity').value = 100;
