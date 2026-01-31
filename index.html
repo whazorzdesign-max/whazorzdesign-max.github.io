@@ -2,184 +2,206 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>WoW Professional Armory Studio</title>
+    <title>WoW Character Studio v1.0</title>
     <style>
-        :root { --accent: #ffd100; --bg: #050505; --panel: rgba(12, 12, 12, 0.98); }
-        body, html { margin: 0; padding: 0; height: 100%; background: var(--bg); color: #fff; font-family: 'Inter', sans-serif; overflow: hidden; }
-        
-        #viewport {
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            width: 90vw; height: 50.625vw; max-width: 1440px; max-height: 810px;
-            background: #000; border: 1px solid #222; box-shadow: 0 0 80px #000;
+        :root { --panel-bg: rgba(35, 35, 35, 0.95); --accent: #ffd100; --border: #444; }
+        body, html { margin: 0; padding: 0; height: 100%; background: #111; color: #eee; font-family: 'Inter', sans-serif; overflow: hidden; }
+
+        /* 16:9 Viewport Logic */
+        #studio-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 100vw;
+            height: 100vh;
         }
 
-        .ui { position: absolute; background: var(--panel); border: 1px solid #333; padding: 15px; z-index: 100; pointer-events: all; }
-        .left { top: 15px; left: 15px; width: 180px; }
-        .right { top: 15px; right: 15px; width: 200px; }
-        
-        h4 { margin: 0 0 10px 0; color: var(--accent); font-size: 10px; text-transform: uppercase; letter-spacing: 1px; }
-        input, button { width: 100%; background: #000; border: 1px solid #444; color: #fff; padding: 10px; margin-bottom: 8px; font-size: 11px; cursor: pointer; box-sizing: border-box; }
-        button:hover { background: var(--accent); color: #000; font-weight: bold; }
+        #viewport {
+            position: relative;
+            width: 90vw;
+            height: 50.625vw; /* 16:9 Ratio */
+            max-width: 1600px;
+            max-height: 900px;
+            background: #181818;
+            background-image: 
+                linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px);
+            background-size: 50px 50px; /* Grid look */
+            border: 1px solid var(--border);
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
 
-        #load-bar { position: absolute; bottom: 80px; left: 50%; transform: translateX(-50%); width: 350px; text-align: center; display: none; }
-        .progress-bg { width: 100%; height: 2px; background: #111; margin-top: 5px; }
-        #progress-fill { height: 100%; width: 0%; background: var(--accent); transition: 0.3s; box-shadow: 0 0 10px var(--accent); }
+        /* Character Layer */
+        #character-stage {
+            position: relative;
+            transition: transform 0.1s ease-out;
+            cursor: move;
+        }
+
+        #char-img {
+            max-height: 80%;
+            filter: drop-shadow(0 0 20px rgba(0,0,0,0.5));
+            user-select: none;
+        }
+
+        /* UI Panels - Software Look */
+        .panel { position: absolute; background: var(--panel-bg); border: 1px solid var(--border); padding: 10px; font-size: 11px; z-index: 100; text-transform: uppercase; letter-spacing: 1px; }
+        
+        .outliner { top: 20px; left: 20px; width: 180px; bottom: 80px; }
+        .properties { top: 20px; right: 20px; width: 200px; bottom: 80px; }
+        .timeline { bottom: 20px; left: 20px; right: 20px; height: 40px; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; }
+
+        h4 { margin: 0 0 10px 0; color: var(--accent); font-size: 10px; border-bottom: 1px solid var(--border); padding-bottom: 5px; }
+        .control-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; color: #888; }
+        
+        input[type="range"] { width: 100%; accent-color: var(--accent); }
+        button { width: 100%; background: #333; border: 1px solid #555; color: white; padding: 5px; cursor: pointer; margin-top: 5px; font-size: 10px; }
+        button:hover { background: var(--accent); color: black; }
+        
+        .search-trigger { background: var(--accent); color: black; font-weight: bold; margin-bottom: 20px; }
+
+        /* Mock Skeleton Overlays */
+        #skeleton-overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+            display: none;
+        }
     </style>
 </head>
 <body>
 
-<div id="viewport">
-    <canvas id="c"></canvas>
+<div id="studio-container">
+    <div id="viewport">
+        <div id="character-stage">
+            <img id="char-img" src="" alt="">
+            <canvas id="skeleton-overlay"></canvas>
+        </div>
 
-    <div id="load-bar">
-        <div id="status-msg" style="font-size: 9px; color: var(--accent);">CONNECTING TO WORKER...</div>
-        <div class="progress-bg"><div id="progress-fill"></div></div>
-    </div>
+        <div class="panel outliner">
+            <h4>Scene Collection</h4>
+            <div style="color:var(--accent)">● Root_Character</div>
+            <div style="padding-left:10px">├─ Mesh_Main</div>
+            <div style="padding-left:10px">└─ Rig_Skeleton</div>
+            <hr style="border:0; border-top:1px solid #444; margin:15px 0;">
+            <h4>Fetch Data</h4>
+            <input type="text" id="name" placeholder="NAME" style="width:90%; background:#000; color:white; border:1px solid #444; margin-bottom:5px;">
+            <input type="text" id="realm" placeholder="REALM" style="width:90%; background:#000; color:white; border:1px solid #444; margin-bottom:5px;">
+            <button class="search-trigger" onclick="fetchChar()">EXECUTE FETCH</button>
+        </div>
 
-    <div class="panel left">
-        <h4>Hierarchy</h4>
-        <input id="name" placeholder="CHAR_NAME">
-        <input id="realm" placeholder="REALM">
-        <button onclick="runLoader()">EXECUTE_LOAD</button>
-    </div>
+        <div class="panel properties">
+            <h4>Transform</h4>
+            <div class="control-group">
+                <label>Scale</label>
+                <input type="range" id="scale" min="0.5" max="2" step="0.1" value="1" oninput="updateTransform()">
+                <label>Rotation Y (Tilt)</label>
+                <input type="range" id="rotate" min="-30" max="30" step="1" value="0" oninput="updateTransform()">
+            </div>
 
-    <div class="panel right">
-        <h4>Material / AO</h4>
-        <label style="font-size: 9px;">Ambient Intensity</label>
-        <input type="range" id="ao-range" min="0" max="3" step="0.1" value="1.5">
-        <button style="margin-top: 20px; background: #28a745;" onclick="saveImg()">Export Alpha PNG</button>
+            <h4>Skeleton (Mock)</h4>
+            <button onclick="toggleSkeleton()">Toggle Bone Viz</button>
+            <button onclick="randomPose()">Generate Random Pose</button>
+
+            <h4 style="margin-top:20px;">Render Output</h4>
+            <button style="background:#28a745;" onclick="downloadAlpha()">Download Alpha PNG</button>
+        </div>
+
+        <div class="panel timeline">
+            <div>PLAYBACK: [ |<  ||  >| ]</div>
+            <div id="status">STATUS: IDLE</div>
+            <div>FPS: 60.0</div>
+        </div>
     </div>
 </div>
 
-<script type="importmap">
-{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js", "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/" } }
-</script>
+<script>
+    let scale = 1;
+    let rotate = 0;
+    let currentData = null;
 
-<script type="module">
-    import * as THREE from 'three';
-    import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-    import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
-    import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
-
-    let scene, camera, renderer, composer, bloomPass, model, light;
-    const worker = "https://my-worker.whazorz.workers.dev";
-
-    function init() {
-        scene = new THREE.Scene();
-        camera = new THREE.PerspectiveCamera(30, 16/9, 0.1, 1000);
-        camera.position.z = 7;
-
-        renderer = new THREE.WebGLRenderer({ 
-            canvas: document.querySelector('#c'), 
-            antialias: true, 
-            alpha: true 
-        });
-        renderer.setSize(document.querySelector('#viewport').clientWidth, document.querySelector('#viewport').clientHeight);
-
-        composer = new EffectComposer(renderer);
-        composer.addPass(new RenderPass(scene, camera));
-        bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
-        composer.addPass(bloomPass);
-
-        scene.add(new THREE.AmbientLight(0xffffff, 0.4));
-        light = new THREE.PointLight(0xffffff, 50, 100);
-        light.position.set(2, 2, 5);
-        scene.add(light);
-
-        window.addEventListener('mousemove', (e) => {
-            if(!model) return;
-            const x = (e.clientX / window.innerWidth) - 0.5;
-            const y = (e.clientY / window.innerHeight) - 0.5;
-            model.rotation.y = x * 0.5;
-            model.rotation.x = -y * 0.3;
-            light.position.set(x * 10, -y * 10, 5); // Dinamiskais AO apgaismojums
-        });
-
-        animate();
-    }
-
-    window.runLoader = async () => {
-        const n = document.querySelector('#name').value;
-        const r = document.querySelector('#realm').value;
-        const bar = document.querySelector('#progress-fill');
-        const msg = document.querySelector('#status-msg');
+    async function fetchChar() {
+        const name = document.getElementById('name').value;
+        const realm = document.getElementById('realm').value;
+        const status = document.getElementById('status');
         
-        document.querySelector('#load-bar').style.display = 'block';
-        bar.style.width = '20%';
-        msg.innerText = "QUERYING API...";
-
+        status.innerText = "STATUS: FETCHING...";
+        
         try {
-            const res = await fetch(`${worker}/?name=${n}&realm=${r}`);
+            // Your Cloudflare Worker URL
+            const res = await fetch(`https://my-worker.whazorz.workers.dev/?name=${name}&realm=${realm}&region=eu`);
             const data = await res.json();
-            const imgUrl = data.media.assets.find(a => a.key === 'main-raw')?.value;
-
-            msg.innerText = "STREAMING TEXTURE...";
-            bar.style.width = '60%';
-
-            // Apejam CORS: Sūtām X-Proxy-Target headerī
-            const loader = new THREE.FileLoader();
-            loader.setResponseType('blob');
-            loader.setRequestHeader({ "X-Proxy-Target": imgUrl });
-
-            loader.load(worker, (blob) => {
-                const url = URL.createObjectURL(blob);
-                new THREE.TextureLoader().load(url, (tex) => {
-                    if(model) scene.remove(model);
-                    const aspect = tex.image.width / tex.image.height;
-                    const mat = new THREE.MeshStandardMaterial({ 
-                        map: tex, 
-                        transparent: true, 
-                        roughness: 0.3,
-                        metalness: 0.1 
-                    });
-                    model = new THREE.Mesh(new THREE.PlaneGeometry(3.8 * aspect, 3.8), mat);
-                    scene.add(model);
-                    
-                    bar.style.width = '100%';
-                    msg.innerText = "RENDER READY";
-                    setTimeout(() => document.querySelector('#load-bar').style.display = 'none', 1000);
-                });
-            });
-        } catch (e) {
-            msg.innerText = "CONNECTION FAILED";
-            bar.style.background = "red";
+            
+            if(data.media) {
+                const imgUrl = data.media.assets.find(a => a.key === "main-raw")?.value || data.media.assets[0].value;
+                document.getElementById('char-img').src = imgUrl;
+                status.innerText = "STATUS: READY";
+                currentData = data;
+            }
+        } catch(e) {
+            status.innerText = "STATUS: ERROR";
         }
-    };
+    }
 
-    window.saveImg = () => {
-        composer.render();
+    function updateTransform() {
+        scale = document.getElementById('scale').value;
+        rotate = document.getElementById('rotate').value;
+        const stage = document.getElementById('character-stage');
+        stage.style.transform = `scale(${scale}) perspective(500px) rotateY(${rotate}deg)`;
+    }
+
+    function toggleSkeleton() {
+        const canvas = document.getElementById('skeleton-overlay');
+        canvas.style.display = canvas.style.display === 'block' ? 'none' : 'block';
+        if(canvas.style.display === 'block') drawMockSkeleton();
+    }
+
+    function drawMockSkeleton() {
+        const canvas = document.getElementById('skeleton-overlay');
+        const ctx = canvas.getContext('2d');
+        const img = document.getElementById('char-img');
+        canvas.width = img.clientWidth;
+        canvas.height = img.clientHeight;
+        
+        ctx.strokeStyle = '#00ff00';
+        ctx.lineWidth = 2;
+        // Mocking bone lines over the 2D image
+        ctx.beginPath();
+        ctx.moveTo(canvas.width/2, canvas.height * 0.2); // Neck
+        ctx.lineTo(canvas.width/2, canvas.height * 0.5); // Spine
+        ctx.lineTo(canvas.width*0.4, canvas.height * 0.8); // L-Leg
+        ctx.moveTo(canvas.width/2, canvas.height * 0.5);
+        ctx.lineTo(canvas.width*0.6, canvas.height * 0.8); // R-Leg
+        ctx.stroke();
+    }
+
+    function randomPose() {
+        // Since it's 2D, we randomize the "Pose" by slightly shearing and tilting
+        const randomSkew = (Math.random() - 0.5) * 10;
+        const randomRot = (Math.random() - 0.5) * 40;
+        document.getElementById('character-stage').style.transform = 
+            `scale(${scale}) rotate(${randomSkew}deg) rotateY(${randomRot}deg)`;
+        document.getElementById('status').innerText = "STATUS: POSE_GENERATED";
+    }
+
+    function downloadAlpha() {
+        const img = document.getElementById('char-img');
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        ctx.drawImage(img, 0, 0);
+        
         const link = document.createElement('a');
-        link.download = 'armory_export.png';
-        link.href = document.querySelector('#c').toDataURL();
+        link.download = 'render_alpha.png';
+        link.href = canvas.toDataURL();
         link.click();
-    };
-
-    function animate() {
-    requestAnimationFrame(animate);
-    
-    // Pārbaudām, vai elementi pastāv pirms nolasa vērtības
-    const bloomInput = document.getElementById('bloom');
-    const aoInput = document.getElementById('ao-strength');
-    
-    if (bloomPass && bloomInput) {
-        bloomPass.strength = bloomInput.value;
     }
-    
-    if (charMesh && aoInput) {
-        // Pārliecināmies, ka materiāls ir ielādēts
-        charMesh.material.emissiveIntensity = aoInput.value;
-    }
-
-    // Atjauninām rāmi (frame count), ja tāds elements ir
-    const frameEl = document.getElementById('frame-count');
-    if (frameEl) {
-        frame++;
-        frameEl.innerText = frame;
-    }
-
-    composer.render();
-}
-    init();
 </script>
+
 </body>
 </html>
