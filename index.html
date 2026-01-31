@@ -177,12 +177,14 @@
         }
     }
 
-    function loadModel(url) {
-        statusText.innerText = "GENERATING MESH...";
+function loadModel(rawUrl) {
+        statusText.innerText = "ROUTING THROUGH WORKER PROXY...";
+        
+        // We pass the blizzard URL back to your worker as a ?proxy= parameter
+        const proxiedUrl = `${WORKER_URL}?proxy=${encodeURIComponent(rawUrl)}`;
         
         const loader = new THREE.TextureLoader();
-        // Removed explicit proxy here to let the Worker URL handle the heavy lifting
-        loader.load(url, (texture) => {
+        loader.load(proxiedUrl, (texture) => {
             if(charMesh) scene.remove(charMesh);
             
             const material = new THREE.MeshStandardMaterial({ 
@@ -199,7 +201,7 @@
             statusText.innerText = "NEURAL SYNC COMPLETE";
             setTimeout(resetUI, 600);
         }, undefined, () => {
-            statusText.innerText = "RENDER ERROR";
+            statusText.innerText = "PROXY RENDER ERROR";
             resetUI();
         });
     }
