@@ -10,24 +10,8 @@ export default {
       return new Response(null, { headers: corsHeaders });
     }
 
-    const url = new URL(request.url);
-
-    // --- NEW: Proxy Mode to bypass Blizzard CORS ---
-    const proxyUrl = url.searchParams.get('proxy');
-    if (proxyUrl) {
-      const imageRes = await fetch(proxyUrl);
-      const { readable, writable } = new TransformStream();
-      imageRes.body.pipeTo(writable);
-      return new Response(readable, {
-        headers: {
-          ...corsHeaders,
-          "Content-Type": imageRes.headers.get("Content-Type") || "image/png",
-          "Cache-Control": "public, max-age=86400"
-        }
-      });
-    }
-
     try {
+      const url = new URL(request.url);
       const name = url.searchParams.get('name')?.toLowerCase().trim();
       const realm = url.searchParams.get('realm')?.toLowerCase().trim().replace(/\s+/g, '-');
       const region = url.searchParams.get('region')?.toLowerCase() || 'eu';
@@ -38,6 +22,7 @@ export default {
         });
       }
 
+      // 1. Get Blizzard Auth Token
       const auth = btoa(`${env.CLIENT_ID}:${env.CLIENT_SECRET}`);
       const tokenRes = await fetch(`https://${region}.oauth.battle.net/token`, {
         method: 'POST',
@@ -51,7 +36,9 @@ export default {
       if (!tokenRes.ok) throw new Error("Blizzard Auth Failed");
       const { access_token } = await tokenRes.json();
 
+      // 2. Fetch Character Media
       const mediaUrl = `https://${region}.api.blizzard.com/profile/wow/character/${realm}/${name}/character-media?namespace=profile-${region}&locale=en_US`;
+      
       const mediaRes = await fetch(mediaUrl, {
         headers: { 'Authorization': `Bearer ${access_token}` }
       });
