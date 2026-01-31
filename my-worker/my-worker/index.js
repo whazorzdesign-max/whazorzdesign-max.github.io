@@ -1,33 +1,43 @@
 ﻿export default {
   async fetch(request, env) {
+    // 1. Definējam galvenes, kas atļauj visu nepieciešamo
     const corsHeaders = {
       "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, X-Proxy-Target", // ATĻAUJ ŠO RINDU
+      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, X-Proxy-Target", // Būtiski: Šeit jābūt X-Proxy-Target
+      "Access-Control-Max-Age": "86400", // Kešatmiņa OPTIONS pieprasījumam
     };
 
-    // Apstrādā pirms-pieprasījumu (preflight)
+    // 2. Apstrādājam Preflight (OPTIONS) pieprasījumu - bez šī būs CORS kļūda
     if (request.method === "OPTIONS") {
-      return new Response(null, { headers: corsHeaders });
+      return new Response(null, { status: 204, headers: corsHeaders });
     }
 
+    const url = new URL(request.url);
     const proxyTarget = request.headers.get("X-Proxy-Target");
+
+    // 3. Attēlu Proxy loģika
     if (proxyTarget) {
       try {
         const imageRes = await fetch(proxyTarget);
+        if (!imageRes.ok) throw new Error("Blizzard noraidīja attēlu");
+        
+        const contentType = imageRes.headers.get("Content-Type");
         return new Response(await imageRes.arrayBuffer(), {
-          headers: { ...corsHeaders, "Content-Type": imageRes.headers.get("Content-Type") || "image/png" }
+          headers: { ...corsHeaders, "Content-Type": contentType || "image/png" }
         });
       } catch (e) {
-        return new Response("Proxy Error", { status: 400, headers: corsHeaders });
+        return new Response(e.message, { status: 400, headers: corsHeaders });
       }
     }
 
+    // 4. API loģika tēla datu iegūšanai
     try {
-      const url = new URL(request.url);
       const name = url.searchParams.get('name')?.toLowerCase().trim();
       const realm = url.searchParams.get('realm')?.toLowerCase().trim().replace(/\s+/g, '-');
       const region = url.searchParams.get('region')?.toLowerCase() || 'eu';
+
+      if (!name || !realm) throw new Error("Trūkst vārds vai realm");
 
       const auth = btoa(`${env.CLIENT_ID}:${env.CLIENT_SECRET}`);
       const tRes = await fetch(`https://${region}.oauth.battle.net/token`, {
@@ -35,6 +45,7 @@
         headers: { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/x-www-form-urlencoded' },
         body: 'grant_type=client_credentials'
       });
+      
       const { access_token } = await tRes.json();
 
       const [pRes, mRes] = await Promise.all([

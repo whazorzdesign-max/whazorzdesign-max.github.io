@@ -2,60 +2,52 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>WoW Ultra-Precision 3D Studio</title>
+    <title>WoW Professional Armory Studio</title>
     <style>
-        :root { --accent: #ffd100; --bg: #050505; --panel: rgba(10, 10, 10, 0.98); }
+        :root { --accent: #ffd100; --bg: #050505; --panel: rgba(12, 12, 12, 0.98); }
         body, html { margin: 0; padding: 0; height: 100%; background: var(--bg); color: #fff; font-family: 'Inter', sans-serif; overflow: hidden; }
-
-        #studio-viewport {
+        
+        #viewport {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
             width: 90vw; height: 50.625vw; max-width: 1440px; max-height: 810px;
-            background: #000; border: 1px solid #222; overflow: hidden;
+            background: #000; border: 1px solid #222; box-shadow: 0 0 80px #000;
         }
 
-        .panel { position: absolute; background: var(--panel); border: 1px solid #333; padding: 15px; z-index: 100; pointer-events: all; }
-        .left { top: 15px; left: 15px; width: 190px; bottom: 80px; }
-        .right { top: 15px; right: 15px; width: 220px; bottom: 80px; }
+        .ui { position: absolute; background: var(--panel); border: 1px solid #333; padding: 15px; z-index: 100; pointer-events: all; }
+        .left { top: 15px; left: 15px; width: 180px; }
+        .right { top: 15px; right: 15px; width: 200px; }
         
         h4 { margin: 0 0 10px 0; color: var(--accent); font-size: 10px; text-transform: uppercase; letter-spacing: 1px; }
-        input, button { width: 100%; background: #000; border: 1px solid #444; color: #fff; padding: 10px; margin-bottom: 10px; font-size: 11px; cursor: pointer; box-sizing: border-box; }
+        input, button { width: 100%; background: #000; border: 1px solid #444; color: #fff; padding: 10px; margin-bottom: 8px; font-size: 11px; cursor: pointer; box-sizing: border-box; }
         button:hover { background: var(--accent); color: #000; font-weight: bold; }
 
-        #loader {
-            position: absolute; bottom: 70px; left: 50%; transform: translateX(-50%);
-            width: 400px; text-align: center; z-index: 1000; display: none;
-        }
-        .bar-bg { width: 100%; height: 2px; background: #222; margin-top: 5px; }
-        #bar-fill { height: 100%; width: 0%; background: var(--accent); transition: 0.2s; box-shadow: 0 0 15px var(--accent); }
+        #load-bar { position: absolute; bottom: 80px; left: 50%; transform: translateX(-50%); width: 350px; text-align: center; display: none; }
+        .progress-bg { width: 100%; height: 2px; background: #111; margin-top: 5px; }
+        #progress-fill { height: 100%; width: 0%; background: var(--accent); transition: 0.3s; box-shadow: 0 0 10px var(--accent); }
     </style>
 </head>
 <body>
 
-<div id="studio-viewport">
-    <canvas id="main-canvas"></canvas>
+<div id="viewport">
+    <canvas id="c"></canvas>
 
-    <div id="loader">
-        <div id="load-txt" style="font-size: 9px; color: var(--accent); letter-spacing: 2px;">SYNCHRONIZING ASSETS...</div>
-        <div class="bar-bg"><div id="bar-fill"></div></div>
+    <div id="load-bar">
+        <div id="status-msg" style="font-size: 9px; color: var(--accent);">CONNECTING TO WORKER...</div>
+        <div class="progress-bg"><div id="progress-fill"></div></div>
     </div>
 
     <div class="panel left">
         <h4>Hierarchy</h4>
-        <input id="charName" placeholder="NAME">
-        <input id="charRealm" placeholder="REALM">
-        <button onclick="bootSystem()">EXECUTE LOAD</button>
-        <div style="font-size: 9px; color: #444; margin-top: 20px;">
-            ENGINE: THREE_PRO_V2<br>AO_SIMULATION: ENABLED<br>CORS_PROXY: ACTIVE
-        </div>
+        <input id="name" placeholder="CHAR_NAME">
+        <input id="realm" placeholder="REALM">
+        <button onclick="runLoader()">EXECUTE_LOAD</button>
     </div>
 
     <div class="panel right">
-        <h4>Material / FX</h4>
-        <label style="font-size: 9px;">Ambient Occlusion</label>
-        <input type="range" id="ao-strength" min="0" max="2" step="0.1" value="1.2">
-        <label style="font-size: 9px;">Global Bloom</label>
-        <input type="range" id="bloom" min="0" max="3" step="0.1" value="1.4">
-        <button style="margin-top: 20px; background: #28a745; border: none;" onclick="capture()">Render Alpha</button>
+        <h4>Material / AO</h4>
+        <label style="font-size: 9px;">Ambient Intensity</label>
+        <input type="range" id="ao-range" min="0" max="3" step="0.1" value="1.5">
+        <button style="margin-top: 20px; background: #28a745;" onclick="saveImg()">Export Alpha PNG</button>
     </div>
 </div>
 
@@ -69,7 +61,7 @@
     import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
     import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 
-    let scene, camera, renderer, composer, bloomPass, charMesh, pointLight;
+    let scene, camera, renderer, composer, bloomPass, model, light;
     const worker = "https://my-worker.whazorz.workers.dev";
 
     function init() {
@@ -78,58 +70,53 @@
         camera.position.z = 7;
 
         renderer = new THREE.WebGLRenderer({ 
-            canvas: document.querySelector('#main-canvas'), 
+            canvas: document.querySelector('#c'), 
             antialias: true, 
-            alpha: true,
-            preserveDrawingBuffer: true 
+            alpha: true 
         });
-        renderer.setSize(document.querySelector('#studio-viewport').clientWidth, document.querySelector('#studio-viewport').clientHeight);
+        renderer.setSize(document.querySelector('#viewport').clientWidth, document.querySelector('#viewport').clientHeight);
 
-        // POST PROCESSING (Bloom + Depth Simulation)
         composer = new EffectComposer(renderer);
         composer.addPass(new RenderPass(scene, camera));
-        bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.4, 0.4, 0.85);
+        bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
         composer.addPass(bloomPass);
 
-        // AMBIENT LIGHTING (AO Bāze)
-        scene.add(new THREE.AmbientLight(0xffffff, 0.5));
-        
-        // DINAMISKAIS PUNKTA APGAISMOJUMS
-        pointLight = new THREE.PointLight(0xffffff, 40, 100);
-        pointLight.position.set(2, 2, 5);
-        scene.add(pointLight);
+        scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+        light = new THREE.PointLight(0xffffff, 50, 100);
+        light.position.set(2, 2, 5);
+        scene.add(light);
 
         window.addEventListener('mousemove', (e) => {
-            if(!charMesh) return;
+            if(!model) return;
             const x = (e.clientX / window.innerWidth) - 0.5;
             const y = (e.clientY / window.innerHeight) - 0.5;
-            charMesh.rotation.y = x * 0.4;
-            charMesh.rotation.x = -y * 0.2;
-            pointLight.position.set(x * 10, -y * 10, 5);
+            model.rotation.y = x * 0.5;
+            model.rotation.x = -y * 0.3;
+            light.position.set(x * 10, -y * 10, 5); // Dinamiskais AO apgaismojums
         });
 
         animate();
     }
 
-    window.bootSystem = async () => {
-        const n = document.querySelector('#charName').value;
-        const r = document.querySelector('#charRealm').value;
-        const bar = document.querySelector('#bar-fill');
-        const txt = document.querySelector('#load-txt');
+    window.runLoader = async () => {
+        const n = document.querySelector('#name').value;
+        const r = document.querySelector('#realm').value;
+        const bar = document.querySelector('#progress-fill');
+        const msg = document.querySelector('#status-msg');
         
-        document.querySelector('#loader').style.display = 'block';
+        document.querySelector('#load-bar').style.display = 'block';
         bar.style.width = '20%';
-        txt.innerText = "QUERYING BLIZZARD API...";
+        msg.innerText = "QUERYING API...";
 
         try {
             const res = await fetch(`${worker}/?name=${n}&realm=${r}`);
             const data = await res.json();
             const imgUrl = data.media.assets.find(a => a.key === 'main-raw')?.value;
 
-            txt.innerText = "NEUTRALIZING CORS & STREAMING TEXTURE...";
-            bar.style.width = '50%';
+            msg.innerText = "STREAMING TEXTURE...";
+            bar.style.width = '60%';
 
-            // LABOTS: Izmantojam FileLoader ar pareizajiem headeriem
+            // Apejam CORS: Sūtām X-Proxy-Target headerī
             const loader = new THREE.FileLoader();
             loader.setResponseType('blob');
             loader.setRequestHeader({ "X-Proxy-Target": imgUrl });
@@ -137,51 +124,42 @@
             loader.load(worker, (blob) => {
                 const url = URL.createObjectURL(blob);
                 new THREE.TextureLoader().load(url, (tex) => {
-                    if(charMesh) scene.remove(charMesh);
-                    
+                    if(model) scene.remove(model);
                     const aspect = tex.image.width / tex.image.height;
-                    const geo = new THREE.PlaneGeometry(3.5 * aspect, 3.5);
-                    
-                    // MeshStandardMaterial reaģē uz AO un gaismu labāk
                     const mat = new THREE.MeshStandardMaterial({ 
                         map: tex, 
                         transparent: true, 
-                        roughness: 0.4,
-                        metalness: 0.2
+                        roughness: 0.3,
+                        metalness: 0.1 
                     });
-
-                    charMesh = new THREE.Mesh(geo, mat);
-                    scene.add(charMesh);
+                    model = new THREE.Mesh(new THREE.PlaneGeometry(3.8 * aspect, 3.8), mat);
+                    scene.add(model);
                     
                     bar.style.width = '100%';
-                    txt.innerText = "PRECISION RENDER COMPLETE";
-                    setTimeout(() => document.querySelector('#loader').style.display = 'none', 1000);
+                    msg.innerText = "RENDER READY";
+                    setTimeout(() => document.querySelector('#load-bar').style.display = 'none', 1000);
                 });
             });
         } catch (e) {
-            txt.innerText = "CORE SYSTEM FAILURE";
+            msg.innerText = "CONNECTION FAILED";
             bar.style.background = "red";
         }
     };
 
-    window.capture = () => {
+    window.saveImg = () => {
         composer.render();
         const link = document.createElement('a');
-        link.download = 'armory_high_res.png';
-        link.href = document.querySelector('#main-canvas').toDataURL('image/png');
+        link.download = 'armory_export.png';
+        link.href = document.querySelector('#c').toDataURL();
         link.click();
     };
 
     function animate() {
         requestAnimationFrame(animate);
-        bloomPass.strength = document.querySelector('#bloom').value;
-        if(charMesh) {
-            // Simulējam AO caur materiāla intensitāti
-            charMesh.material.emissiveIntensity = document.querySelector('#ao-strength').value;
-        }
+        bloomPass.strength = document.querySelector('#bloom').value || 1.5;
+        if(model) model.material.emissiveIntensity = document.querySelector('#ao-range').value;
         composer.render();
     }
-
     init();
 </script>
 </body>
