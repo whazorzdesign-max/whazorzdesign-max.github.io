@@ -147,11 +147,27 @@ HTML
         } catch(e) { console.error(e); }
     }
 
-    function loadTextureAndBuild(url) {
-        new THREE.TextureLoader().load(url, (texture) => {
-            currentTexture = texture;
-            buildSandwich();
-        });
+function loadTextureAndBuild(url) {
+        const loader = new THREE.TextureLoader();
+        loader.setCrossOrigin('anonymous');
+        
+        // Add a timestamp to the URL to bypass proxy caching, 
+        // which can sometimes trigger timeouts on old/broken links.
+        const cacheBuster = url.includes('?') ? `&t=${Date.now()}` : `?t=${Date.now()}`;
+        
+        loader.load(
+            url + cacheBuster, 
+            (texture) => {
+                texture.colorSpace = THREE.SRGBColorSpace;
+                currentTexture = texture;
+                buildSandwich();
+            },
+            undefined, // onProgress
+            (err) => {
+                console.error("Texture Load Error:", err);
+                document.getElementById('hud-status').innerText = "ERROR: PROXY_TIMEOUT_408";
+            }
+        );
     }
 
     function buildSandwich() {
