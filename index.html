@@ -6,7 +6,6 @@
     <title>WoW Character Studio v2.1</title>
     
     <script async src="https://unpkg.com/es-module-shims@1.8.0/dist/es-module-shims.js"></script>
-
     <script type="importmap">
     {
         "imports": {
@@ -19,7 +18,7 @@
         :root { --panel-bg: rgba(15, 15, 15, 0.95); --accent: #ffd100; --border: #333; }
         body, html { margin: 0; padding: 0; height: 100%; background: #050505; color: #eee; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
         #studio-container { display: flex; justify-content: center; align-items: center; width: 100vw; height: 100vh; }
-        #viewport { position: relative; width: 90vw; height: 50.625vw; background: #000; border: 1px solid var(--border); box-shadow: 0 0 40px rgba(0,0,0,1); z-index: 0; }
+        #viewport { position: relative; width: 90vw; height: 50.625vw; background: #000; border: 1px solid var(--border); z-index: 0; }
         canvas { position: absolute; top: 0; left: 0; z-index: 1; }
         .panel { position: absolute; background: var(--panel-bg); border: 1px solid var(--border); padding: 15px; font-size: 11px; z-index: 100; backdrop-filter: blur(10px); }
         .outliner { top: 20px; left: 20px; width: 220px; }
@@ -35,8 +34,8 @@
     <div id="viewport">
         <div class="panel outliner">
             <h4 style="color:var(--accent); margin:0 0 10px 0;">IMPORT MANAGER</h4>
-            <input type="text" id="name" placeholder="Name (e.g. Grom)">
-            <input type="text" id="realm" placeholder="Realm (e.g. Draenor)">
+            <input type="text" id="name" placeholder="Name">
+            <input type="text" id="realm" placeholder="Realm">
             <button onclick="window.fetchChar()">IMPORT TO ENGINE</button>
         </div>
         <div class="panel properties">
@@ -52,9 +51,12 @@
     let scene, camera, renderer, charMesh;
     const viewport = document.getElementById('viewport');
 
-    // 3. Fix CORS: Use a proxy to fetch images
-    const CORS_PROXY = "https://corsproxy.io/?"; 
-    const WORKER_URL = "https://my-worker.whazorz.workers.dev/";
+    // Use a multi-proxy fallback approach
+    const PROXIES = [
+        "https://api.allorigins.win/raw?url=",
+        "https://corsproxy.io/?",
+        "https://thingproxy.freeboard.io/fetch/"
+    ];
 
     function init() {
         scene = new THREE.Scene();
@@ -63,13 +65,12 @@
 
         renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
         renderer.setSize(viewport.clientWidth, viewport.clientHeight);
-        renderer.shadowMap.enabled = true;
         viewport.appendChild(renderer.domElement);
 
         const light = new THREE.PointLight(0xffffff, 100);
         light.position.set(2, 2, 5);
         scene.add(light);
-        scene.add(new THREE.AmbientLight(0xffffff, 1));
+        scene.add(new THREE.AmbientLight(0xffffff, 1.2));
 
         animate();
     }
@@ -77,30 +78,45 @@
     window.fetchChar = async function() {
         const name = document.getElementById('name').value;
         const realm = document.getElementById('realm').value;
-        
+        const WORKER_URL = "https://my-worker.whazorz.workers.dev/";
+
         try {
             const res = await fetch(`${WORKER_URL}?name=${encodeURIComponent(name)}&realm=${encodeURIComponent(realm)}&region=eu`);
             const data = await res.json();
             const rawUrl = data.media.assets.find(a => a.key === "main-raw")?.value || data.media.assets[0].value;
             
-            // Apply CORS Proxy to the URL
-            const proxiedUrl = CORS_PROXY + encodeURIComponent(rawUrl);
-            loadModel(proxiedUrl);
-        } catch(e) { console.error("Fetch failed", e); }
+            // Try the first proxy
+            loadModel(PROXIES[0] + encodeURIComponent(rawUrl));
+        } catch(e) { 
+            console.error("Fetch failed", e); 
+        }
     }
 
     function loadModel(url) {
         const loader = new THREE.TextureLoader();
-        // Set crossOrigin to anonymous to ensure credentials aren't leaked
+        // Anonymous crossOrigin is essential for WebGL textures
         loader.setCrossOrigin('anonymous'); 
 
-        loader.load(url, (texture) => {
-            if(charMesh) scene.remove(charMesh);
-            const geo = new THREE.PlaneGeometry(3, 4);
-            const mat = new THREE.MeshStandardMaterial({ map: texture, transparent: true, alphaTest: 0.5 });
-            charMesh = new THREE.Mesh(geo, mat);
-            scene.add(charMesh);
-        });
+        loader.load(
+            url, 
+            (texture) => {
+                if(charMesh) scene.remove(charMesh);
+                const geo = new THREE.PlaneGeometry(3, 4);
+                // alphaTest ensures transparent areas don't block shadows/lights
+                const mat = new THREE.MeshStandardMaterial({ map: texture, transparent: true, alphaTest: 0.5 });
+                charMesh = new THREE.Mesh(geo, mat);
+                scene.add(charMesh);
+            },
+            undefined,
+            (err) => {
+                console.warn("Texture failed to load. Trying alternative proxy...");
+                // Simple logic to try the second proxy if the first fails
+                if (url.includes(encodeURIComponent(PROXIES[0]))) {
+                    const originalUrl = decodeURIComponent(url.replace(PROXIES[0], ""));
+                    loadModel(PROXIES[1] + encodeURIComponent(originalUrl));
+                }
+            }
+        );
     }
 
     function animate() {
