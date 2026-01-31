@@ -21,33 +21,19 @@
             --glass: rgba(255, 255, 255, 0.05);
             --font: 'Inter', 'Segoe UI', sans-serif;
         }
-
         body, html { margin: 0; padding: 0; height: 100%; background: #020202; color: #fff; font-family: var(--font); overflow: hidden; }
-
         #studio-layout { display: grid; grid-template-columns: 300px 1fr 300px; height: 100vh; width: 100vw; background: radial-gradient(circle at center, #0a0a0a 0%, #000 100%); }
-
         #viewport-container { position: relative; display: flex; align-items: center; justify-content: center; overflow: hidden; border-left: 1px solid #111; border-right: 1px solid #111; }
-        canvas { outline: none; }
-
-        .sidebar { background: var(--panel-bg); backdrop-filter: blur(20px); padding: 25px; display: flex; flex-direction: column; gap: 20px; z-index: 10; border-right: 1px solid rgba(255,255,255,0.05); }
-        .sidebar-right { border-right: none; border-left: 1px solid rgba(255,255,255,0.05); }
-        
+        .sidebar { background: var(--panel-bg); backdrop-filter: blur(20px); padding: 25px; display: flex; flex-direction: column; gap: 20px; z-index: 10; }
         h2 { font-size: 10px; letter-spacing: 3px; color: var(--accent); margin: 0; text-transform: uppercase; opacity: 0.8; }
-        
         .control-block { background: var(--glass); border: 1px solid rgba(255,255,255,0.05); padding: 15px; border-radius: 8px; }
         label { display: block; font-size: 9px; text-transform: uppercase; color: #666; margin-bottom: 8px; letter-spacing: 1px; }
-
         input[type="text"] { width: 100%; background: #000; border: 1px solid #222; color: #fff; padding: 10px; border-radius: 4px; margin-bottom: 10px; box-sizing: border-box; }
-        input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer; background: transparent; }
-
+        input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer; }
         .btn-generate { 
             width: 100%; background: linear-gradient(45deg, #00f2ff, #0062ff); 
-            color: #000; border: none; padding: 12px; border-radius: 4px; 
-            font-weight: 800; font-size: 11px; cursor: pointer; text-transform: uppercase;
-            transition: 0.3s; box-shadow: 0 0 20px rgba(0, 242, 255, 0.2);
+            color: #000; border: none; padding: 12px; border-radius: 4px; font-weight: 800; font-size: 11px; cursor: pointer; text-transform: uppercase;
         }
-        .btn-generate:hover { transform: translateY(-2px); box-shadow: 0 0 30px rgba(0, 242, 255, 0.4); }
-
         #hud-status { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); font-family: monospace; font-size: 10px; color: #444; z-index: 5; }
         .ai-glow { animation: glow 2s infinite alternate; }
         @keyframes glow { from { opacity: 0.4; } to { opacity: 1; } }
@@ -78,7 +64,7 @@
         <div id="hud-status">ENGINE.READY // SHADOWS: PCF_SOFT</div>
     </div>
 
-    <div class="sidebar sidebar-right">
+    <div class="sidebar">
         <h2>Light Studio</h2>
         <div class="control-block">
             <label>Light Intensity</label>
@@ -91,7 +77,7 @@
         <div class="control-block">
             <label>Ambient Occlusion</label>
             <input type="range" id="ambient" min="0" max="5" step="0.1" value="1.5">
-            <button onclick="window.resetLight()" style="width:100%; background:transparent; border:1px solid #333; color:#888; padding:8px; font-size:9px; cursor:pointer; margin-top:10px;">Reset Lighting</button>
+            <button onclick="window.resetLight()" style="width:100%; background:transparent; border:1px solid #333; color:#888; padding:5px; font-size:9px; cursor:pointer; margin-top:10px;">Reset Lighting</button>
         </div>
     </div>
 </div>
@@ -99,10 +85,11 @@
 <script type="module">
     import * as THREE from 'three';
 
+    // Global variables within this module
     let scene, camera, renderer, charMesh, pointLight, ambientLight;
     const viewport = document.getElementById('viewport-container');
     
-    // REPLACE THIS URL WITH YOUR ACTUAL WORKER URL
+    // Config
     const WORKER_URL = "https://my-worker.whazorz.workers.dev/";
     const PROXY = "https://api.allorigins.win/raw?url=";
 
@@ -137,6 +124,7 @@
         animate();
     }
 
+    // Attach to window so HTML onclick can find it
     window.fetchChar = async function() {
         const name = document.getElementById('name').value;
         const realm = document.getElementById('realm').value;
@@ -149,7 +137,8 @@
             const res = await fetch(`${WORKER_URL}?name=${encodeURIComponent(name)}&realm=${encodeURIComponent(realm)}&region=eu`);
             const data = await res.json();
             
-            // Logic to find the best image asset (main-raw or fallback)
+            if (data.error) throw new Error(data.error);
+
             const assets = data.media.assets;
             const rawUrl = assets.find(a => a.key === "main-raw")?.value || assets[0].value;
             
@@ -157,7 +146,7 @@
             status.innerText = "GENERATE COMPLETE // MESH_LOADED";
         } catch(e) {
             console.error(e);
-            status.innerText = "ERROR: NEURAL_LINK_FAILED";
+            status.innerText = "ERROR: " + e.message;
         }
     }
 
@@ -172,14 +161,11 @@
                 map: texture, 
                 transparent: true, 
                 alphaTest: 0.5,
-                side: THREE.DoubleSide,
-                roughness: 0.6,
-                metalness: 0.2
+                side: THREE.DoubleSide
             });
 
             charMesh = new THREE.Mesh(geometry, material);
             charMesh.castShadow = true;
-            charMesh.position.y = 0;
             scene.add(charMesh);
         });
     }
@@ -190,9 +176,7 @@
         if(charMesh) {
             const scale = document.getElementById('scale').value;
             charMesh.scale.set(scale, scale, scale);
-            
             charMesh.position.y = Math.sin(Date.now() * 0.001) * 0.1;
-            charMesh.rotation.y = Math.sin(Date.now() * 0.0005) * 0.1;
             charMesh.material.metalness = parseFloat(document.getElementById('depth').value);
         }
 
@@ -210,11 +194,13 @@
     };
 
     window.addEventListener('resize', () => {
+        if (!camera || !renderer) return;
         camera.aspect = viewport.clientWidth / viewport.clientHeight;
         camera.updateProjectionMatrix();
         renderer.setSize(viewport.clientWidth, viewport.clientHeight);
     });
 
+    // Start the engine
     init();
 </script>
 
