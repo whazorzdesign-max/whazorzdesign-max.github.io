@@ -127,51 +127,44 @@ HTML
     }
 
     window.fetchCharacter = async () => {
-        const name = document.getElementById('name').value.trim();
-        const realm = document.getElementById('realm').value.trim();
-        const region = document.getElementById('region').value;
-        const statusText = document.getElementById('status-text');
-        const statusDot = document.getElementById('status-dot');
+    const name = document.getElementById('name').value.trim();
+    const realm = document.getElementById('realm').value.trim();
+    const region = document.getElementById('region').value;
+    const statusText = document.getElementById('status-text');
 
-        if (!name || !realm) return alert("Enter Details");
+    if (!name || !realm) return alert("Enter Details");
 
-        statusText.innerText = "SYSTEM: FETCHING_ASSETS...";
+    statusText.innerText = "SYSTEM: FETCHING_ASSETS...";
+    
+    try {
+        // Step 1: Get the JSON data from your Worker
+        const res = await fetch(`${workerUrl}/?name=${encodeURIComponent(name)}&realm=${encodeURIComponent(realm)}&region=${region}`);
+        const data = await res.json();
         
-        try {
-            const res = await fetch(`${workerUrl}/?name=${name}&realm=${realm}&region=${region}`);
-            const data = await res.json();
+        if (data.error) throw new Error(data.error);
+
+        // Step 2: Extract the image URL
+        const rawImg = data.media.assets.find(a => a.key === 'main-raw')?.value || data.media.assets[0].value;
+        
+        // Step 3: USE ENCODE ON THE PROXY URL (This fixes the 400 error)
+        const proxiedImg = `${workerUrl}/?proxyUrl=${encodeURIComponent(rawImg)}`;
+
+        new THREE.TextureLoader().setCrossOrigin('anonymous').load(proxiedImg, (tex) => {
+            if (charMesh) scene.remove(charMesh);
             
-            if (data.error) throw new Error(data.error);
+            const aspect = tex.image.width / tex.image.height;
+            const geometry = new THREE.PlaneGeometry(3.5 * aspect, 3.5);
+            const material = new THREE.MeshPhongMaterial({ map: tex, transparent: true, shininess: 80 });
 
-            const rawImg = data.media.assets.find(a => a.key === 'main-raw')?.value || data.media.assets[0].value;
-            // Use Worker as Proxy to fix Image CORS
-            const proxiedImg = `${workerUrl}/?proxyUrl=${encodeURIComponent(rawImg)}`;
+            charMesh = new THREE.Mesh(geometry, material);
+            scene.add(charMesh);
 
-            new THREE.TextureLoader().setCrossOrigin('anonymous').load(proxiedImg, (tex) => {
-                if (charMesh) scene.remove(charMesh);
-                if (skeletonHelper) scene.remove(skeletonHelper);
-
-                const aspect = tex.image.width / tex.image.height;
-                const geometry = new THREE.PlaneGeometry(3.5 * aspect, 3.5);
-                const material = new THREE.MeshPhongMaterial({ map: tex, transparent: true, shininess: 80 });
-
-                charMesh = new THREE.Mesh(geometry, material);
-                scene.add(charMesh);
-
-                // Mock Skeleton
-                skeletonHelper = new THREE.GridHelper(2, 10, 0x00ff00, 0x222222);
-                skeletonHelper.rotation.x = Math.PI / 2;
-                skeletonHelper.visible = false;
-                scene.add(skeletonHelper);
-
-                statusText.innerText = `READY: ${data.profile.name.toUpperCase()}`;
-                statusDot.classList.add('status-ready');
-            });
-        } catch (e) {
-            statusText.innerText = `ERROR: ${e.message.toUpperCase()}`;
-            statusDot.classList.remove('status-ready');
-        }
-    };
+            statusText.innerText = `READY: ${data.profile.name.toUpperCase()}`;
+        });
+    } catch (e) {
+        statusText.innerText = `ERROR: ${e.message.toUpperCase()}`;
+    }
+};
 
     function onMouseMove(e) {
         if (!charMesh) return;
