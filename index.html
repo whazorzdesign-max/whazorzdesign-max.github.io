@@ -103,49 +103,7 @@
 </div>
 
 <script type="module">
-    import * as THREE from 'three';
-
-    let scene, camera, renderer, charMesh, pointLight, ambientLight;
-    const viewport = document.getElementById('viewport-container');
-    const PROXY = "https://api.allorigins.win/raw?url=";
-    const WORKER_URL = "https://my-worker.whazorz.workers.dev/";
-
-    function init() {
-        scene = new THREE.Scene();
-        camera = new THREE.PerspectiveCamera(40, viewport.clientWidth / viewport.clientHeight, 0.1, 1000);
-        camera.position.set(0, 0, 7);
-
-        renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-        renderer.setSize(viewport.clientWidth, viewport.clientHeight);
-        renderer.shadowMap.enabled = true;
-        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-        viewport.appendChild(renderer.domElement);
-
-        // Lighting System
-        ambientLight = new THREE.AmbientLight(0xffffff, 1.5);
-        scene.add(ambientLight);
-
-        pointLight = new THREE.PointLight(0xffffff, 100);
-        pointLight.position.set(5, 5, 5);
-        pointLight.castShadow = true;
-        pointLight.shadow.mapSize.width = 2048;
-        pointLight.shadow.mapSize.height = 2048;
-        scene.add(pointLight);
-
-        // Shadow Catcher (Invisible Floor)
-        const floor = new THREE.Mesh(
-            new THREE.PlaneGeometry(50, 50),
-            new THREE.ShadowMaterial({ opacity: 0.5 })
-        );
-        floor.rotation.x = -Math.PI / 2;
-        floor.position.y = -2.5;
-        floor.receiveShadow = true;
-        scene.add(floor);
-
-        animate();
-    }
-
-    window.fetchChar = async function() {
+window.fetchChar = async function() {
         const name = document.getElementById('name').value;
         const realm = document.getElementById('realm').value;
         const status = document.getElementById('hud-status');
@@ -154,20 +112,29 @@
         status.innerHTML = `<span class="ai-glow" style="color:var(--accent)">INITIALIZING NEURAL FETCH...</span>`;
 
         try {
+            // 1. Get character data
             const res = await fetch(`${WORKER_URL}?name=${encodeURIComponent(name)}&realm=${encodeURIComponent(realm)}&region=eu`);
+            if(!res.ok) throw new Error("Character not found");
+            
             const data = await res.json();
             const rawUrl = data.media.assets.find(a => a.key === "main-raw")?.value || data.media.assets[0].value;
             
-            loadModel(PROXY + encodeURIComponent(rawUrl));
+            // 2. Load model using the WORKER as the proxy
+            const finalImageUrl = `${WORKER_URL}?proxy=${encodeURIComponent(rawUrl)}`;
+            loadModel(finalImageUrl);
+            
             status.innerText = "GENERATE COMPLETE // MESH_LOADED";
         } catch(e) {
+            console.error(e);
             status.innerText = "ERROR: NEURAL_LINK_FAILED";
         }
     }
 
     function loadModel(url) {
         const loader = new THREE.TextureLoader();
+        // CrossOrigin is still good practice
         loader.setCrossOrigin('anonymous');
+        
         loader.load(url, (texture) => {
             if(charMesh) scene.remove(charMesh);
 
@@ -185,6 +152,8 @@
             charMesh.castShadow = true;
             charMesh.position.y = 0;
             scene.add(charMesh);
+        }, undefined, (err) => {
+            document.getElementById('hud-status').innerText = "ERROR: TEXTURE_LOAD_FAILED";
         });
     }
 
