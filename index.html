@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Character Studio | Neural Link</title>
+    <title>AI Character Studio</title>
     
     <script async src="https://unpkg.com/es-module-shims@1.8.0/dist/es-module-shims.js"></script>
     <script type="importmap">
@@ -17,7 +17,7 @@
     <style>
         :root { 
             --accent: #00f2ff; 
-            --panel-bg: rgba(10, 10, 10, 0.98);
+            --panel-bg: rgba(10, 10, 10, 1);
             --glass: rgba(255, 255, 255, 0.03);
             --font: 'Inter', system-ui, sans-serif;
             --sidebar-w: 280px;
@@ -25,6 +25,7 @@
 
         body, html { margin: 0; padding: 0; height: 100%; background: #000; color: #fff; font-family: var(--font); overflow: hidden; }
         
+        /* Fixed Layout: UI stays put, Viewport fills the rest */
         #studio-layout { display: flex; height: 100vh; width: 100vw; }
 
         #viewport-container { 
@@ -32,14 +33,14 @@
             position: relative; 
             background: #000; 
             order: 2;
+            overflow: hidden;
         }
 
         .sidebar { 
             width: var(--sidebar-w);
             min-width: var(--sidebar-w);
             background: var(--panel-bg); 
-            backdrop-filter: blur(20px); 
-            padding: 20px; 
+            padding: 25px; 
             display: flex; 
             flex-direction: column; 
             gap: 20px; 
@@ -60,10 +61,6 @@
             padding: 10px; border-radius: 4px; margin-bottom: 10px; box-sizing: border-box; font-size: 12px;
         }
 
-        .region-select { display: flex; gap: 5px; margin-bottom: 10px; }
-        .region-btn { flex: 1; background: #000; border: 1px solid #333; color: #555; padding: 6px; font-size: 10px; cursor: pointer; border-radius: 4px; }
-        .region-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(0, 242, 255, 0.05); }
-
         input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer; margin-bottom: 15px; }
 
         .btn-generate { 
@@ -73,9 +70,9 @@
         .btn-generate:disabled { opacity: 0.3; cursor: wait; }
 
         #loading-container { position: absolute; top: 0; left: 0; width: 100%; height: 2px; background: transparent; z-index: 100; display: none; }
-        #loading-bar { width: 0%; height: 100%; background: var(--accent); transition: width 0.4s ease-out; box-shadow: 0 0 8px var(--accent); }
+        #loading-bar { width: 0%; height: 100%; background: var(--accent); transition: width 0.4s ease-out; }
 
-        #hud-status { position: absolute; bottom: 20px; width: 100%; text-align: center; font-family: monospace; font-size: 10px; color: #444; letter-spacing: 1px; }
+        #hud-status { position: absolute; bottom: 20px; width: 100%; text-align: center; font-family: monospace; font-size: 10px; color: #444; }
     </style>
 </head>
 <body>
@@ -84,11 +81,6 @@
     <div class="sidebar left-panel">
         <h2>Neural Import</h2>
         <div class="control-block">
-            <label>Link Region</label>
-            <div class="region-select">
-                <button class="region-btn active" onclick="setRegion('us', this)">US</button>
-                <button class="region-btn" onclick="setRegion('eu', this)">EU</button>
-            </div>
             <label>Biological Identity</label>
             <input type="text" id="name" placeholder="Name">
             <input type="text" id="realm" placeholder="Realm">
@@ -114,9 +106,9 @@
         <div class="control-block">
             <label>Intensity</label>
             <input type="range" id="lightIntensity" min="0" max="200" value="100">
-            <label>Light X</label>
+            <label>Light Position X</label>
             <input type="range" id="lightX" min="-10" max="10" value="5">
-            <label>Light Y</label>
+            <label>Light Position Y</label>
             <input type="range" id="lightY" min="-10" max="10" value="5">
         </div>
         <button onclick="window.resetLight()" style="background:transparent; border:1px solid #333; color:#555; padding:8px; font-size:9px; cursor:pointer; width:100%; border-radius:4px;">RESET PARAMETERS</button>
@@ -127,7 +119,6 @@
     import * as THREE from 'three';
 
     let scene, camera, renderer, charMesh, pointLight;
-    let currentRegion = 'us';
     
     const viewport = document.getElementById('viewport-container');
     const loadBar = document.getElementById('loading-bar');
@@ -135,7 +126,7 @@
     const statusText = document.getElementById('hud-status');
     const genBtn = document.getElementById('gen-btn');
 
-    const PROXY = "https://api.allorigins.win/raw?url=";
+    // Your Worker should handle the proxying or direct retrieval to avoid CORS here
     const WORKER_URL = "https://my-worker.whazorz.workers.dev/";
 
     function init() {
@@ -158,12 +149,6 @@
         animate();
     }
 
-    window.setRegion = (reg, btn) => {
-        currentRegion = reg;
-        document.querySelectorAll('.region-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-    };
-
     window.fetchChar = async function() {
         const name = document.getElementById('name').value;
         const realm = document.getElementById('realm').value;
@@ -171,37 +156,35 @@
 
         genBtn.disabled = true;
         loadCont.style.display = 'block';
-        loadBar.style.width = '20%';
-        statusText.innerText = "QUERYING NEURAL DATABASE...";
+        loadBar.style.width = '30%';
+        statusText.innerText = "QUERYING WORKER...";
 
         try {
-            const res = await fetch(`${WORKER_URL}?name=${encodeURIComponent(name)}&realm=${encodeURIComponent(realm)}&region=${currentRegion}`);
+            // Updated to use the worker as the primary source
+            const res = await fetch(`${WORKER_URL}?name=${encodeURIComponent(name)}&realm=${encodeURIComponent(realm)}`);
             const data = await res.json();
             
-            loadBar.style.width = '50%';
-            const rawUrl = data.media?.assets?.find(a => a.key === "main-raw")?.value || data.media?.assets[0]?.value;
+            // Assuming your worker provides a direct or proxied asset URL
+            const assetUrl = data.media?.assets?.find(a => a.key === "main-raw")?.value || data.media?.assets[0]?.value;
             
-            if(!rawUrl) throw new Error("Null asset");
+            if(!assetUrl) throw new Error("Asset not found");
             
-            loadModelOldLogic(rawUrl);
+            loadBar.style.width = '60%';
+            loadModel(assetUrl);
         } catch(e) { 
-            statusText.innerText = "ERROR: IDENTITY NOT FOUND";
+            statusText.innerText = "IDENTITY LINK FAILED";
             resetUI();
         }
     }
 
-    // REVERTED TO OLD STABLE LOGIC: 
-    // Manual Image object + CanvasTexture handles CORS proxying better than Loader
-    function loadModelOldLogic(rawUrl) {
-        statusText.innerText = "DOWNLOADING TEXTURE MAP...";
+    function loadModel(url) {
+        statusText.innerText = "GENERATING MESH...";
         
-        const img = new Image();
-        img.crossOrigin = "Anonymous"; 
-        
-        img.onload = () => {
+        const loader = new THREE.TextureLoader();
+        // Removed explicit proxy here to let the Worker URL handle the heavy lifting
+        loader.load(url, (texture) => {
             if(charMesh) scene.remove(charMesh);
             
-            const texture = new THREE.CanvasTexture(img);
             const material = new THREE.MeshStandardMaterial({ 
                 map: texture, 
                 transparent: true, 
@@ -213,16 +196,12 @@
             scene.add(charMesh);
             
             loadBar.style.width = '100%';
-            statusText.innerText = "NEURAL LINK ESTABLISHED";
+            statusText.innerText = "NEURAL SYNC COMPLETE";
             setTimeout(resetUI, 600);
-        };
-
-        img.onerror = () => {
-            statusText.innerText = "CORS SYNC FAILED";
+        }, undefined, () => {
+            statusText.innerText = "RENDER ERROR";
             resetUI();
-        };
-
-        img.src = PROXY + encodeURIComponent(rawUrl);
+        });
     }
 
     function resetUI() {
