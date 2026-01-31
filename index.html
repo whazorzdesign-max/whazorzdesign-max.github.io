@@ -132,56 +132,72 @@
             loadAIModel(PROXY + encodeURIComponent(url));
         } catch(e) { console.error(e); }
     }
+function loadAIModel(url) {
+    const loader = new THREE.TextureLoader();
+    loader.setCrossOrigin('anonymous');
+    
+    loader.load(url, (texture) => {
+        if(charMesh) scene.remove(charMesh);
 
-    function loadAIModel(url) {
-        const loader = new THREE.TextureLoader();
-        loader.setCrossOrigin('anonymous');
-        
-        loader.load(url, (texture) => {
-            if(charMesh) scene.remove(charMesh);
+        // 1. SMART SUBDIVISION: We create a dense grid (128x128 segments) 
+        // This allows the "AI" to physically push parts of the image forward.
+        const geometry = new THREE.PlaneGeometry(4, 5, 128, 128);
 
-            // SMART AI FILTER: Use the same texture as a Bump Map
-            // This makes the light treat "darker" areas as deeper and "brighter" as higher.
-            const material = new THREE.MeshStandardMaterial({ 
-                map: texture,
-                bumpMap: texture, // AI Bump Filter
-                bumpScale: 0.05,
-                transparent: true, 
-                alphaTest: 0.5,
-                roughness: 0.5,
-                metalness: 0.1
-            });
-
-            charMesh = new THREE.Mesh(new THREE.PlaneGeometry(4, 5), material);
-            charMesh.castShadow = true;
-            scene.add(charMesh);
+        const material = new THREE.MeshStandardMaterial({ 
+            map: texture,
+            displacementMap: texture, // Using the image as a height map
+            displacementScale: 0.2,   // This is the "Smart 3D" depth
+            displacementBias: -0.1,   // Centers the depth
+            bumpMap: texture,         // Adds extra micro-detail
+            bumpScale: 0.05,
+            transparent: true, 
+            alphaTest: 0.5,
+            roughness: 0.6,
+            metalness: 0.3,
+            side: THREE.DoubleSide
         });
-    }
 
-    function animate() {
-        requestAnimationFrame(animate);
+        charMesh = new THREE.Mesh(geometry, material);
+        charMesh.castShadow = true;
+        charMesh.receiveShadow = true;
         
-        if(charMesh) {
-            // Smart Rotation with hard limits (±60 degrees)
-            const targetRot = document.getElementById('rotateY').value * (Math.PI / 180);
-            charMesh.rotation.y = THREE.MathUtils.lerp(charMesh.rotation.y, targetRot, 0.1);
+        // 2. SHADOW FIX: Prevent self-shadowing artifacts
+        charMesh.customDepthMaterial = new THREE.MeshDepthMaterial({
+            depthPacking: THREE.RGBADepthPacking,
+            displacementMap: texture,
+            displacementScale: 0.2,
+            alphaTest: 0.5
+        });
 
-            // Update Bump & Roughness from UI
-            charMesh.material.bumpScale = document.getElementById('bumpScale').value;
-            charMesh.material.roughness = document.getElementById('roughness').value;
+        scene.add(charMesh);
+    });
+}
+
+function animate() {
+    requestAnimationFrame(animate);
+    
+    if(charMesh) {
+        // Updated rotation constraints (Locked ±60°)
+        const targetRot = document.getElementById('rotateY').value * (Math.PI / 180);
+        charMesh.rotation.y = THREE.MathUtils.lerp(charMesh.rotation.y, targetRot, 0.05);
+
+        // LIVE UPDATE: Connect slider to Displacement Scale
+        const depthVal = document.getElementById('bumpScale').value;
+        charMesh.material.displacementScale = depthVal;
+        
+        // Sync the custom shadow depth with the slider
+        if(charMesh.customDepthMaterial) {
+            charMesh.customDepthMaterial.displacementScale = depthVal;
         }
 
-        pointLight.position.x = document.getElementById('lightX').value;
-        pointLight.intensity = document.getElementById('lightInt').value;
-        
-        renderer.render(scene, camera);
+        charMesh.material.roughness = document.getElementById('roughness').value;
     }
 
-    window.addEventListener('resize', () => {
-        camera.aspect = viewport.clientWidth / viewport.clientHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(viewport.clientWidth, viewport.clientHeight);
-    });
+    pointLight.position.x = document.getElementById('lightX').value;
+    pointLight.intensity = document.getElementById('lightInt').value;
+    
+    renderer.render(scene, camera);
+}
 
     init();
 </script>
