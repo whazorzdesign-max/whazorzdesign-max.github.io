@@ -38,17 +38,26 @@
         headers: { 'Authorization': `Bearer ${access_token}` }
       });
       
+      if (!mediaRes.ok) throw new Error("Character not found or API down");
+      
       const media = await mediaRes.json();
-      const rawUrl = media.assets.find(a => a.key === "main-raw")?.value || media.assets[0].value;
+      
+      // FALLBACK LOGIC: Try 'main-raw', then 'main', then 'avatar', then just the first asset found.
+      const asset = media.assets.find(a => a.key === "main-raw") || 
+                    media.assets.find(a => a.key === "main") || 
+                    media.assets.find(a => a.key === "avatar") || 
+                    media.assets[0];
 
-      // 3. Fast Image Proxy (Converts to Base64 to bypass CORS and Proxy lag)
-      const imageFetch = await fetch(rawUrl);
+      if (!asset) throw new Error("No assets found for this character");
+
+      // 3. Convert to Base64 (Speed optimization)
+      const imageFetch = await fetch(asset.value);
       const buffer = await imageFetch.arrayBuffer();
       const base64 = btoa(new Uint8Array(buffer).reduce((data, byte) => data + String.fromCharCode(byte), ''));
       
       return new Response(JSON.stringify({ 
         image: `data:image/png;base64,${base64}`,
-        source: rawUrl 
+        assetKey: asset.key
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" }
       });

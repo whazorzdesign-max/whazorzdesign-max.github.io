@@ -119,27 +119,27 @@
         }
     }
 
-    function loadModel(base64Data) {
-        const loader = new THREE.TextureLoader();
-        loader.load(base64Data, (texture) => {
-            if(charMesh) scene.remove(charMesh);
+function loadModel(base64Data) {
+    const loader = new THREE.TextureLoader();
+    loader.load(base64Data, (texture) => {
+        if(charMesh) scene.remove(charMesh);
 
-            // Using square geometry for 2040x2040 resolution
-            const geometry = new THREE.PlaneGeometry(5, 5);
-            const material = new THREE.MeshStandardMaterial({ 
-                map: texture, 
-                transparent: true, 
-                side: THREE.DoubleSide,
-                roughness: 0.3,
-                metalness: 0.5
-            });
-
-            charMesh = new THREE.Mesh(geometry, material);
-            charMesh.castShadow = true;
-            scene.add(charMesh);
+        const geometry = new THREE.PlaneGeometry(5, 5);
+        const material = new THREE.MeshStandardMaterial({ 
+            map: texture, 
+            transparent: true, 
+            side: THREE.DoubleSide,
+            alphaTest: 0.1, // This helps remove the "black box" around some renders
+            roughness: 0.3,
+            metalness: 0.5
         });
-    }
 
+        charMesh = new THREE.Mesh(geometry, material);
+        charMesh.castShadow = true;
+        charMesh.position.y = 0.5; // Lift slightly to center
+        scene.add(charMesh);
+    });
+}
     function animate() {
         requestAnimationFrame(animate);
         if(charMesh) {
