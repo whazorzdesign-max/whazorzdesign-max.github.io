@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI 2.5D Character Studio</title>
+    <title>Worker 2.5D Slice Studio</title>
     
     <script async src="https://unpkg.com/es-module-shims@1.8.0/dist/es-module-shims.js"></script>
     <script type="importmap">
@@ -28,7 +28,6 @@
 
         #viewport-container { position: relative; display: flex; align-items: center; justify-content: center; overflow: hidden; border-left: 1px solid #111; border-right: 1px solid #111; }
         canvas { outline: none; cursor: grab; }
-        canvas:active { cursor: grabbing; }
 
         .sidebar { background: var(--panel-bg); backdrop-filter: blur(20px); padding: 25px; display: flex; flex-direction: column; gap: 20px; z-index: 10; border-right: 1px solid rgba(255,255,255,0.05); }
         .sidebar.right { border-right: none; border-left: 1px solid rgba(255,255,255,0.05); }
@@ -37,9 +36,6 @@
         
         .control-block { background: var(--glass); border: 1px solid rgba(255,255,255,0.05); padding: 15px; border-radius: 8px; }
         label { display: block; font-size: 9px; text-transform: uppercase; color: #666; margin-bottom: 8px; letter-spacing: 1px; }
-
-        input[type="text"] { width: 100%; background: #000; border: 1px solid #222; color: #fff; padding: 10px; border-radius: 4px; margin-bottom: 10px; box-sizing: border-box; font-family: monospace; }
-        input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer; background: transparent; }
 
         .btn-generate { 
             width: 100%; background: linear-gradient(45deg, #00f2ff, #0062ff); 
@@ -58,45 +54,43 @@
 
 <div id="studio-layout">
     <div class="sidebar">
-        <h2>Neural Import</h2>
+        <h2>Worker Stream</h2>
         <div class="control-block">
-            <label>Biological Identity</label>
-            <input type="text" id="name" placeholder="Character Name..." value="">
-            <input type="text" id="realm" placeholder="Realm Name..." value="">
-            <button class="btn-generate" onclick="window.fetchChar()">Construct Sandwich</button>
+            <label>Source: Cloudflare Worker</label>
+            <button class="btn-generate" onclick="window.fetchWorkerImage()">Initialize Slicing</button>
         </div>
         
-        <h2>2.5D Parameters</h2>
+        <h2>Layering Engine</h2>
         <div class="control-block">
-            <label>Slices (Thickness)</label>
+            <label>Slice Density</label>
             <input type="range" id="layers" min="5" max="40" step="1" value="20">
-            <label>Slice Spread</label>
+            <label>Depth Spread</label>
             <input type="range" id="spread" min="0.01" max="0.1" step="0.005" value="0.04">
-            <label>Mesh Scale</label>
+            <label>Model Scale</label>
             <input type="range" id="scale" min="0.5" max="2.5" step="0.1" value="1.2">
         </div>
     </div>
 
     <div id="viewport-container">
-        <div id="hud-status">SYSTEM.IDLE // WAITING_FOR_INPUT</div>
+        <div id="hud-status">WORKER_READY // WAITING_FOR_SYNC</div>
     </div>
 
     <div class="sidebar right">
-        <h2>Light Studio</h2>
+        <h2>Light Rig</h2>
         <div class="control-block">
-            <label>Light Intensity</label>
-            <input type="range" id="lightIntensity" min="0" max="200" value="120">
-            <label>Light Position X</label>
+            <label>Primary Intensity</label>
+            <input type="range" id="lightIntensity" min="0" max="200" value="130">
+            <label>Light Orbit X</label>
             <input type="range" id="lightX" min="-10" max="10" value="5">
         </div>
 
         <h2>Environment</h2>
         <div class="control-block">
-            <label>Ambient Occlusion</label>
+            <label>Internal Occlusion</label>
             <input type="range" id="ambient" min="0" max="5" step="0.1" value="1.8">
-            <button onclick="window.resetLight()" style="width:100%; background:transparent; border:1px solid #333; color:#888; padding:8px; font-size:9px; cursor:pointer; border-radius:4px;">Reset Lighting</button>
+            <button onclick="window.resetLight()" style="width:100%; background:transparent; border:1px solid #333; color:#888; padding:8px; font-size:9px; cursor:pointer; border-radius:4px;">Recalibrate</button>
         </div>
-        <p style="font-size: 8px; color: #444; margin-top: auto;">2.5D SANDWICH ENGINE V1.1 // SHARP_SILHOUETTE_ACTIVE</p>
+        <p style="font-size: 8px; color: #444; margin-top: auto;">WORKER_RENDER_V1.2 // DIRECT_BUFFER</p>
     </div>
 </div>
 
@@ -106,8 +100,9 @@
     let scene, camera, renderer, charGroup, pointLight, ambientLight;
     const viewport = document.getElementById('viewport-container');
     
-    const PROXY = "https://api.allorigins.win/raw?url=";
+    // Updated to handle the direct Worker Image link
     const WORKER_URL = "https://my-worker.whazorz.workers.dev/"; 
+    const PROXY = "https://api.allorigins.win/raw?url=";
     let currentTexture = null;
 
     function init() {
@@ -125,7 +120,7 @@
         ambientLight = new THREE.AmbientLight(0xffffff, 1.8);
         scene.add(ambientLight);
 
-        pointLight = new THREE.PointLight(0xffffff, 120);
+        pointLight = new THREE.PointLight(0xffffff, 130);
         pointLight.position.set(5, 5, 5);
         pointLight.castShadow = true;
         scene.add(pointLight);
@@ -135,7 +130,7 @@
 
         const floor = new THREE.Mesh(
             new THREE.PlaneGeometry(30, 30),
-            new THREE.ShadowMaterial({ opacity: 0.2 })
+            new THREE.ShadowMaterial({ opacity: 0.15 })
         );
         floor.rotation.x = -Math.PI / 2;
         floor.position.y = -3.5;
@@ -145,20 +140,15 @@
         animate();
     }
 
-    window.fetchChar = async function() {
-        const name = document.getElementById('name').value.trim();
-        const realm = document.getElementById('realm').value.trim();
+    window.fetchWorkerImage = async function() {
         const status = document.getElementById('hud-status');
-        
-        if(!name || !realm) {
-            status.innerText = "ERROR: NAME_OR_REALM_MISSING";
-            return;
-        }
-
-        status.innerHTML = `<span class="ai-glow">INITIATING MULTI-LAYER SLICE...</span>`;
+        status.innerHTML = `<span class="ai-glow">PULLING WORKER BUFFER...</span>`;
 
         try {
-            const res = await fetch(`${WORKER_URL}?name=${encodeURIComponent(name)}&realm=${encodeURIComponent(realm)}&region=eu`);
+            // Directly load from the worker. If your worker returns JSON first, we parse it.
+            // If it returns an image directly, we use the URL. 
+            // This logic assumes the worker returns the JSON structure from your previous code.
+            const res = await fetch(`${WORKER_URL}?name=Character&realm=Realm&region=eu`);
             const data = await res.json();
             
             if(data.error) throw new Error(data.error);
@@ -167,10 +157,10 @@
             const rawUrl = asset.value;
             
             loadTextureAndBuild(PROXY + encodeURIComponent(rawUrl));
-            status.innerText = "NEURAL RENDER COMPLETE // 2.5D ACTIVE";
+            status.innerText = "BUFFER_LOADED // 2.5D_CONSTRUCTED";
         } catch(e) {
             console.error(e);
-            status.innerText = "ERROR: NEURAL_LINK_BROKEN";
+            status.innerText = "ERROR: WORKER_SYNC_FAILED";
         }
     }
 
@@ -197,28 +187,21 @@
 
         for (let i = 0; i < layerCount; i++) {
             const geometry = new THREE.PlaneGeometry(4, 5);
-            
-            // Percentage of depth (0 is front, 1 is back)
             const depthFactor = i / (layerCount - 1);
             
             const material = new THREE.MeshStandardMaterial({ 
                 map: currentTexture, 
                 transparent: true, 
-                // Keep alphaTest high (0.5+) to prevent blurred/messy edges on the outline
-                alphaTest: 0.55,
+                alphaTest: 0.55, // Maintains sharp outlines
                 side: THREE.DoubleSide,
-                roughness: 0.6,
-                metalness: 0.0,
-                // Inner "filling" layers are progressively darkened to create fake depth
-                color: new THREE.Color(1 - depthFactor * 0.5, 1 - depthFactor * 0.5, 1 - depthFactor * 0.5)
+                roughness: 0.7,
+                // Darkens the "filling" to simulate inner shadows
+                color: new THREE.Color(1 - depthFactor * 0.45, 1 - depthFactor * 0.45, 1 - depthFactor * 0.45)
             });
 
             const slice = new THREE.Mesh(geometry, material);
-            
-            // Center the stack on Z-axis
             slice.position.z = (i - layerCount / 2) * spread;
             
-            // Only the front and back slices handle shadows for clean edges and performance
             if (i === 0 || i === layerCount - 1) {
                 slice.castShadow = true;
             }
@@ -235,11 +218,9 @@
             charGroup.scale.set(scale, scale, scale);
             
             const time = Date.now() * 0.001;
-            // Auto-sway to show off the sandwich depth
-            charGroup.rotation.y = Math.sin(time * 0.5) * 0.5;
-            charGroup.position.y = Math.sin(time * 0.8) * 0.05;
+            charGroup.rotation.y = Math.sin(time * 0.4) * 0.45; // Smooth sway
+            charGroup.position.y = Math.sin(time * 0.7) * 0.05;
 
-            // Rebuild if slider changes count
             const currentLayers = charGroup.children.length;
             const targetLayers = parseInt(document.getElementById('layers').value);
             if(currentLayers !== targetLayers) buildSandwich();
@@ -253,7 +234,7 @@
     }
 
     window.resetLight = () => {
-        document.getElementById('lightIntensity').value = 120;
+        document.getElementById('lightIntensity').value = 130;
         document.getElementById('lightX').value = 5;
         document.getElementById('ambient').value = 1.8;
     };
