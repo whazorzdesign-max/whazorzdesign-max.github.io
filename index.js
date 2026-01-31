@@ -3,12 +3,14 @@ export default {
     const corsHeaders = {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, X-Proxy-Target",
+      "Access-Control-Allow-Headers": "Content-Type, X-Proxy-Target", // ATĻAUJ ŠO RINDU
     };
 
-    if (request.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+    // Apstrādā pirms-pieprasījumu (preflight)
+    if (request.method === "OPTIONS") {
+      return new Response(null, { headers: corsHeaders });
+    }
 
-    // PĀRBAUDE: Vai tiek pieprasīts attēla proxy caur Headeri
     const proxyTarget = request.headers.get("X-Proxy-Target");
     if (proxyTarget) {
       try {
@@ -17,11 +19,10 @@ export default {
           headers: { ...corsHeaders, "Content-Type": imageRes.headers.get("Content-Type") || "image/png" }
         });
       } catch (e) {
-        return new Response("Image Proxy Error", { status: 400, headers: corsHeaders });
+        return new Response("Proxy Error", { status: 400, headers: corsHeaders });
       }
     }
 
-    // STANDARTA API LOGIKA
     try {
       const url = new URL(request.url);
       const name = url.searchParams.get('name')?.toLowerCase().trim();
