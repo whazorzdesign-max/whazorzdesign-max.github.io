@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WoW Character Studio v2.1</title>
+    <title>AI Character Studio</title>
     
     <script async src="https://unpkg.com/es-module-shims@1.8.0/dist/es-module-shims.js"></script>
     <script type="importmap">
@@ -15,32 +15,89 @@
     </script>
 
     <style>
-        :root { --panel-bg: rgba(15, 15, 15, 0.95); --accent: #ffd100; --border: #333; }
-        body, html { margin: 0; padding: 0; height: 100%; background: #050505; color: #eee; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
-        #studio-container { display: flex; justify-content: center; align-items: center; width: 100vw; height: 100vh; }
-        #viewport { position: relative; width: 90vw; height: 50.625vw; background: #000; border: 1px solid var(--border); z-index: 0; }
-        canvas { position: absolute; top: 0; left: 0; z-index: 1; }
-        .panel { position: absolute; background: var(--panel-bg); border: 1px solid var(--border); padding: 15px; font-size: 11px; z-index: 100; backdrop-filter: blur(10px); }
-        .outliner { top: 20px; left: 20px; width: 220px; }
-        .properties { top: 20px; right: 20px; width: 220px; }
-        input[type="text"] { width: 100%; background: #000; color: #fff; border: 1px solid #444; padding: 8px; margin-bottom: 5px; box-sizing: border-box; }
-        button { width: 100%; background: #222; border: 1px solid #444; color: white; padding: 8px; cursor: pointer; margin-top: 5px; font-size: 10px; transition: 0.2s; }
-        button:hover { background: var(--accent); color: #000; }
+        :root { 
+            --accent: #00f2ff; 
+            --panel-bg: rgba(0, 0, 0, 0.75);
+            --glass: rgba(255, 255, 255, 0.05);
+            --font: 'Inter', 'Segoe UI', sans-serif;
+        }
+
+        body, html { margin: 0; padding: 0; height: 100%; background: #020202; color: #fff; font-family: var(--font); overflow: hidden; }
+
+        /* The Studio Container */
+        #studio-layout { display: grid; grid-template-columns: 300px 1fr 300px; height: 100vh; width: 100vw; background: radial-gradient(circle at center, #0a0a0a 0%, #000 100%); }
+
+        /* Viewport Styling */
+        #viewport-container { position: relative; display: flex; align-items: center; justify-content: center; overflow: hidden; border-left: 1px solid #111; border-right: 1px solid #111; }
+        canvas { outline: none; }
+
+        /* Glass Panels */
+        .sidebar { background: var(--panel-bg); backdrop-filter: blur(20px); padding: 25px; display: flex; flex-direction: column; gap: 20px; z-index: 10; }
+        h2 { font-size: 10px; letter-spacing: 3px; color: var(--accent); margin: 0; text-transform: uppercase; opacity: 0.8; }
+        
+        /* Control Groups */
+        .control-block { background: var(--glass); border: 1px solid rgba(255,255,255,0.05); padding: 15px; border-radius: 8px; }
+        label { display: block; font-size: 9px; text-transform: uppercase; color: #666; margin-bottom: 8px; letter-spacing: 1px; }
+
+        input[type="text"] { width: 100%; background: #000; border: 1px solid #222; color: #fff; padding: 10px; border-radius: 4px; margin-bottom: 10px; box-sizing: border-box; }
+        input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer; background: transparent; }
+
+        /* AI Generation Button */
+        .btn-generate { 
+            background: linear-gradient(45deg, #00f2ff, #0062ff); 
+            color: #000; border: none; padding: 12px; border-radius: 4px; 
+            font-weight: 800; font-size: 11px; cursor: pointer; text-transform: uppercase;
+            transition: 0.3s; box-shadow: 0 0 20px rgba(0, 242, 255, 0.2);
+        }
+        .btn-generate:hover { transform: translateY(-2px); box-shadow: 0 0 30px rgba(0, 242, 255, 0.4); }
+
+        /* Status HUD */
+        #hud-status { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); font-family: monospace; font-size: 10px; color: #444; z-index: 5; }
+        .ai-glow { animation: glow 2s infinite alternate; }
+        @keyframes glow { from { opacity: 0.4; } to { opacity: 1; } }
     </style>
 </head>
 <body>
 
-<div id="studio-container">
-    <div id="viewport">
-        <div class="panel outliner">
-            <h4 style="color:var(--accent); margin:0 0 10px 0;">IMPORT MANAGER</h4>
-            <input type="text" id="name" placeholder="Name">
-            <input type="text" id="realm" placeholder="Realm">
-            <button onclick="window.fetchChar()">IMPORT TO ENGINE</button>
+<div id="studio-layout">
+    <div class="sidebar">
+        <h2>Neural Import</h2>
+        <div class="control-block">
+            <label>Biological Identity</label>
+            <input type="text" id="name" placeholder="Character Name...">
+            <input type="text" id="realm" placeholder="Realm Name...">
+            <button class="btn-generate" onclick="window.fetchChar()">Process Neural Render</button>
         </div>
-        <div class="panel properties">
-            <h4 style="color:var(--accent); margin:0 0 10px 0;">TRANSFORM</h4>
-            <input type="range" id="rotate" min="-180" max="180" value="0">
+        
+        <h2>AI Simulation</h2>
+        <div class="control-block">
+            <label>Surface Depth</label>
+            <input type="range" id="depth" min="0" max="1" step="0.01" value="0.2">
+            <label>Mesh Scale</label>
+            <input type="range" id="scale" min="0.5" max="2.5" step="0.1" value="1.2">
+        </div>
+    </div>
+
+    <div id="viewport-container">
+        <div id="hud-status">ENGINE.READY // SHADOWS: PCF_SOFT</div>
+    </div>
+
+    <div class="sidebar">
+        <h2>Light Studio</h2>
+        <div class="control-block">
+            <label>Light Intensity</label>
+            <input type="range" id="lightIntensity" min="0" max="200" value="100">
+            <label>Shadow Softness</label>
+            <input type="range" id="shadowSoftness" min="0" max="10" value="5">
+            <label>Light Position X</label>
+            <input type="range" id="lightX" min="-10" max="10" value="5">
+        </div>
+
+        <h2>Environment</h2>
+        <div class="control-block">
+            <label>Ambient Occlusion</label>
+            <input type="range" id="ambient" min="0" max="5" step="0.1" value="1.5">
+            <button onclick="window.resetLight()" style="background:transparent; border:1px solid #333; color:#888; padding:5px; font-size:9px; cursor:pointer;">Reset Lighting</button>
         </div>
     </div>
 </div>
@@ -48,29 +105,42 @@
 <script type="module">
     import * as THREE from 'three';
 
-    let scene, camera, renderer, charMesh;
-    const viewport = document.getElementById('viewport');
-
-    // Use a multi-proxy fallback approach
-    const PROXIES = [
-        "https://api.allorigins.win/raw?url=",
-        "https://corsproxy.io/?",
-        "https://thingproxy.freeboard.io/fetch/"
-    ];
+    let scene, camera, renderer, charMesh, pointLight, ambientLight;
+    const viewport = document.getElementById('viewport-container');
+    const PROXY = "https://api.allorigins.win/raw?url=";
+    const WORKER_URL = "https://my-worker.whazorz.workers.dev/";
 
     function init() {
         scene = new THREE.Scene();
-        camera = new THREE.PerspectiveCamera(45, viewport.clientWidth / viewport.clientHeight, 0.1, 1000);
-        camera.position.set(0, 0, 5);
+        camera = new THREE.PerspectiveCamera(40, viewport.clientWidth / viewport.clientHeight, 0.1, 1000);
+        camera.position.set(0, 0, 7);
 
-        renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+        renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
         renderer.setSize(viewport.clientWidth, viewport.clientHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         viewport.appendChild(renderer.domElement);
 
-        const light = new THREE.PointLight(0xffffff, 100);
-        light.position.set(2, 2, 5);
-        scene.add(light);
-        scene.add(new THREE.AmbientLight(0xffffff, 1.2));
+        // Lighting System
+        ambientLight = new THREE.AmbientLight(0xffffff, 1.5);
+        scene.add(ambientLight);
+
+        pointLight = new THREE.PointLight(0xffffff, 100);
+        pointLight.position.set(5, 5, 5);
+        pointLight.castShadow = true;
+        pointLight.shadow.mapSize.width = 2048;
+        pointLight.shadow.mapSize.height = 2048;
+        scene.add(pointLight);
+
+        // Shadow Catcher (Invisible Floor)
+        const floor = new THREE.Mesh(
+            new THREE.PlaneGeometry(50, 50),
+            new THREE.ShadowMaterial({ opacity: 0.5 })
+        );
+        floor.rotation.x = -Math.PI / 2;
+        floor.position.y = -2.5;
+        floor.receiveShadow = true;
+        scene.add(floor);
 
         animate();
     }
@@ -78,56 +148,84 @@
     window.fetchChar = async function() {
         const name = document.getElementById('name').value;
         const realm = document.getElementById('realm').value;
-        const WORKER_URL = "https://my-worker.whazorz.workers.dev/";
+        const status = document.getElementById('hud-status');
+        
+        if(!name || !realm) return;
+        status.innerHTML = `<span class="ai-glow" style="color:var(--accent)">INITIALIZING NEURAL FETCH...</span>`;
 
         try {
             const res = await fetch(`${WORKER_URL}?name=${encodeURIComponent(name)}&realm=${encodeURIComponent(realm)}&region=eu`);
             const data = await res.json();
             const rawUrl = data.media.assets.find(a => a.key === "main-raw")?.value || data.media.assets[0].value;
             
-            // Try the first proxy
-            loadModel(PROXIES[0] + encodeURIComponent(rawUrl));
-        } catch(e) { 
-            console.error("Fetch failed", e); 
+            loadModel(PROXY + encodeURIComponent(rawUrl));
+            status.innerText = "GENERATE COMPLETE // MESH_LOADED";
+        } catch(e) {
+            status.innerText = "ERROR: NEURAL_LINK_FAILED";
         }
     }
 
     function loadModel(url) {
         const loader = new THREE.TextureLoader();
-        // Anonymous crossOrigin is essential for WebGL textures
-        loader.setCrossOrigin('anonymous'); 
+        loader.setCrossOrigin('anonymous');
+        loader.load(url, (texture) => {
+            if(charMesh) scene.remove(charMesh);
 
-        loader.load(
-            url, 
-            (texture) => {
-                if(charMesh) scene.remove(charMesh);
-                const geo = new THREE.PlaneGeometry(3, 4);
-                // alphaTest ensures transparent areas don't block shadows/lights
-                const mat = new THREE.MeshStandardMaterial({ map: texture, transparent: true, alphaTest: 0.5 });
-                charMesh = new THREE.Mesh(geo, mat);
-                scene.add(charMesh);
-            },
-            undefined,
-            (err) => {
-                console.warn("Texture failed to load. Trying alternative proxy...");
-                // Simple logic to try the second proxy if the first fails
-                if (url.includes(encodeURIComponent(PROXIES[0]))) {
-                    const originalUrl = decodeURIComponent(url.replace(PROXIES[0], ""));
-                    loadModel(PROXIES[1] + encodeURIComponent(originalUrl));
-                }
-            }
-        );
+            const geometry = new THREE.PlaneGeometry(4, 5);
+            const material = new THREE.MeshStandardMaterial({ 
+                map: texture, 
+                transparent: true, 
+                alphaTest: 0.5,
+                side: THREE.DoubleSide,
+                roughness: 0.6,
+                metalness: 0.2
+            });
+
+            charMesh = new THREE.Mesh(geometry, material);
+            charMesh.castShadow = true;
+            charMesh.position.y = 0;
+            scene.add(charMesh);
+        });
     }
 
     function animate() {
         requestAnimationFrame(animate);
+        
+        // Update values from UI
         if(charMesh) {
-            charMesh.rotation.y = document.getElementById('rotate').value * (Math.PI / 180);
+            const scale = document.getElementById('scale').value;
+            charMesh.scale.set(scale, scale, scale);
+            
+            // Subtle "AI" floating animation
+            charMesh.position.y = Math.sin(Date.now() * 0.001) * 0.1;
+            charMesh.rotation.y = Math.sin(Date.now() * 0.0005) * 0.1;
+
+            // Surface Depth Simulation (Metalness adjustment)
+            charMesh.material.metalness = document.getElementById('depth').value;
         }
+
+        // Lighting Updates
+        pointLight.intensity = document.getElementById('lightIntensity').value;
+        pointLight.position.x = document.getElementById('lightX').value;
+        ambientLight.intensity = document.getElementById('ambient').value;
+        
         renderer.render(scene, camera);
     }
 
+    window.resetLight = () => {
+        document.getElementById('lightIntensity').value = 100;
+        document.getElementById('lightX').value = 5;
+        document.getElementById('ambient').value = 1.5;
+    };
+
+    window.addEventListener('resize', () => {
+        camera.aspect = viewport.clientWidth / viewport.clientHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(viewport.clientWidth, viewport.clientHeight);
+    });
+
     init();
 </script>
+
 </body>
 </html>
