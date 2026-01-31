@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI 2.5D Studio // Sharp Silhouette Blur</title>
+    <title>AI 2.5D Studio // Direct Pipe</title>
     
     <script async src="https://unpkg.com/es-module-shims@1.8.0/dist/es-module-shims.js"></script>
     <script type="importmap">
@@ -23,19 +23,32 @@
         }
 
         body, html { margin: 0; padding: 0; height: 100%; background: #020202; color: #fff; font-family: var(--font); overflow: hidden; }
+
         #studio-layout { display: grid; grid-template-columns: 300px 1fr 300px; height: 100vh; width: 100vw; background: radial-gradient(circle at center, #0a0a0a 0%, #000 100%); }
+
         #viewport-container { position: relative; display: flex; align-items: center; justify-content: center; overflow: hidden; border-left: 1px solid #111; border-right: 1px solid #111; }
         canvas { outline: none; }
+
         .sidebar { background: var(--panel-bg); backdrop-filter: blur(20px); padding: 25px; display: flex; flex-direction: column; gap: 20px; z-index: 10; border-right: 1px solid rgba(255,255,255,0.05); }
         .sidebar.right { border-right: none; border-left: 1px solid rgba(255,255,255,0.05); }
+
         h2 { font-size: 10px; letter-spacing: 3px; color: var(--accent); margin: 0; text-transform: uppercase; opacity: 0.8; }
+        
         .control-block { background: var(--glass); border: 1px solid rgba(255,255,255,0.05); padding: 15px; border-radius: 8px; }
         label { display: block; font-size: 9px; text-transform: uppercase; color: #666; margin-bottom: 8px; letter-spacing: 1px; }
+
         input[type="text"] { width: 100%; background: #000; border: 1px solid #222; color: #fff; padding: 10px; border-radius: 4px; margin-bottom: 10px; box-sizing: border-box; font-family: monospace; }
         input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer; background: transparent; }
-        .btn-generate { width: 100%; background: linear-gradient(45deg, #00f2ff, #0062ff); color: #000; border: none; padding: 12px; border-radius: 4px; font-weight: 800; font-size: 11px; cursor: pointer; text-transform: uppercase; transition: 0.3s; box-shadow: 0 0 20px rgba(0, 242, 255, 0.2); }
+
+        .btn-generate { 
+            width: 100%; background: linear-gradient(45deg, #00f2ff, #0062ff); 
+            color: #000; border: none; padding: 12px; border-radius: 4px; 
+            font-weight: 800; font-size: 11px; cursor: pointer; text-transform: uppercase;
+            transition: 0.3s; box-shadow: 0 0 20px rgba(0, 242, 255, 0.2);
+        }
         .btn-generate:hover { transform: translateY(-2px); box-shadow: 0 0 30px rgba(0, 242, 255, 0.4); }
-        #hud-status { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); font-family: monospace; font-size: 10px; color: #444; z-index: 5; text-transform: uppercase; letter-spacing: 2px; }
+
+        #hud-status { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); font-family: monospace; font-size: 10px; color: #444; z-index: 5; text-transform: uppercase; letter-spacing: 2px; text-align: center; }
     </style>
 </head>
 <body>
@@ -52,25 +65,25 @@
         
         <h2>2.5D Parameters</h2>
         <div class="control-block">
-            <label>Slice Count</label>
-            <input type="range" id="layers" min="10" max="60" step="1" value="40">
+            <label>Slices (Density)</label>
+            <input type="range" id="layers" min="10" max="80" step="1" value="45">
             <label>Neural Blur Depth</label>
-            <input type="range" id="spread" min="0.01" max="0.1" step="0.005" value="0.03">
+            <input type="range" id="spread" min="0.01" max="0.1" step="0.005" value="0.035">
             <label>Mesh Scale</label>
             <input type="range" id="scale" min="0.5" max="2.5" step="0.1" value="1.2">
         </div>
     </div>
 
     <div id="viewport-container">
-        <div id="hud-status">SYSTEM.IDLE // SHARP_SILHOUETTE_ACTIVE</div>
+        <div id="hud-status">SYSTEM.IDLE // DIRECT_PIPE_READY</div>
     </div>
 
     <div class="sidebar right">
         <h2>Light Studio</h2>
         <div class="control-block">
-            <label>Intensity</label>
-            <input type="range" id="lightIntensity" min="0" max="200" value="120">
-            <label>Orbit X</label>
+            <label>Light Intensity</label>
+            <input type="range" id="lightIntensity" min="0" max="200" value="130">
+            <label>Light Position X</label>
             <input type="range" id="lightX" min="-10" max="10" value="5">
         </div>
 
@@ -80,7 +93,7 @@
             <input type="range" id="ambient" min="0" max="5" step="0.1" value="1.8">
             <button onclick="window.resetLight()" style="width:100%; background:transparent; border:1px solid #333; color:#888; padding:8px; font-size:9px; cursor:pointer; border-radius:4px;">Recalibrate</button>
         </div>
-        <p style="font-size: 8px; color: #444; margin-top: auto;">V1.4 // BLUR_INTERIOR_SHARP_EDGE</p>
+        <p style="font-size: 8px; color: #444; margin-top: auto;">V1.5 // NO_PROXY // BLUR_VOLUMETRIC</p>
     </div>
 </div>
 
@@ -89,8 +102,8 @@
 
     let scene, camera, renderer, charGroup, pointLight, ambientLight;
     const viewport = document.getElementById('viewport-container');
-    // 1. Switch to a more reliable proxy
-    const PROXY = "https://corsproxy.io/?"; 
+    
+    // No more PROXY needed if your Worker returns the image directly
     const WORKER_URL = "https://my-worker.whazorz.workers.dev/"; 
     let currentTexture = null;
 
@@ -109,71 +122,56 @@
         ambientLight = new THREE.AmbientLight(0xffffff, 1.8);
         scene.add(ambientLight);
 
-        pointLight = new THREE.PointLight(0xffffff, 120);
+        pointLight = new THREE.PointLight(0xffffff, 130);
         pointLight.position.set(5, 5, 5);
         pointLight.castShadow = true;
         scene.add(pointLight);
 
         charGroup = new THREE.Group();
-        charGroup.rotation.y = 0.4; 
+        charGroup.rotation.y = 0.45; // Static angle to see thickness
         scene.add(charGroup);
 
         const floor = new THREE.Mesh(
-            new THREE.PlaneGeometry(20, 20),
-            new THREE.ShadowMaterial({ opacity: 0.3 })
+            new THREE.PlaneGeometry(30, 30),
+            new THREE.ShadowMaterial({ opacity: 0.15 })
         );
         floor.rotation.x = -Math.PI / 2;
-        floor.position.y = -3;
+        floor.position.y = -3.5;
         floor.receiveShadow = true;
         scene.add(floor);
 
-        render();
+        renderLoop();
     }
 
-    window.fetchChar = async function() {
+    window.fetchChar = function() {
         const name = document.getElementById('name').value.trim();
         const realm = document.getElementById('realm').value.trim();
+        const status = document.getElementById('hud-status');
+        
         if(!name || !realm) return;
+        status.innerText = "STREAMING DIRECT FROM WORKER...";
 
-        try {
-            const res = await fetch(`${WORKER_URL}?name=${encodeURIComponent(name)}&realm=${encodeURIComponent(realm)}&region=eu`);
-            const data = await res.json();
-            const asset = data.media.assets.find(a => a.key === "main-raw") || data.media.assets[0];
-            loadTextureAndBuild(PROXY + encodeURIComponent(asset.value));
-        } catch(e) { console.error(e); }
-    }
+        const loader = new THREE.TextureLoader();
+        loader.setCrossOrigin('anonymous');
+        
+        // Pointing directly to your worker which should return a PNG
+        const workerUrl = `${WORKER_URL}?name=${encodeURIComponent(name)}&realm=${encodeURIComponent(realm)}&region=eu`;
 
-
-
-function loadTextureAndBuild(url) {
-    const loader = new THREE.TextureLoader();
-    loader.setCrossOrigin('anonymous');
-    
-    // Use the proxy directly
-    // Ensure we are passing the raw Blizzard URL to the proxy
-    const finalUrl = PROXY + encodeURIComponent(url);
-
-    loader.load(
-        finalUrl, 
-        (texture) => {
-            texture.colorSpace = THREE.SRGBColorSpace;
-            currentTexture = texture;
-            buildSandwich();
-            document.getElementById('hud-status').innerText = "SYSTEM.READY // RENDER_STABLE";
-        },
-        undefined, 
-        (err) => {
-            console.error("Texture Load Error:", err);
-            // If corsproxy fails, try a fallback
-            document.getElementById('hud-status').innerText = "CORS_ERROR: ATTEMPTING_FALLBACK...";
-            const fallbackUrl = "https://api.allorigins.win/raw?url=" + encodeURIComponent(url);
-            loader.load(fallbackUrl, (tex) => {
-                currentTexture = tex;
+        loader.load(
+            workerUrl, 
+            (texture) => {
+                texture.colorSpace = THREE.SRGBColorSpace;
+                currentTexture = texture;
                 buildSandwich();
-            });
-        }
-    );
-}
+                status.innerText = "RENDER_STABLE // STATIC_VOLUMETRIC";
+            },
+            undefined,
+            (err) => {
+                console.error("Load Error:", err);
+                status.innerText = "LINK_ERROR // CHECK_WORKER_CORS";
+            }
+        );
+    }
 
     function buildSandwich() {
         if(!currentTexture) return;
@@ -185,26 +183,24 @@ function loadTextureAndBuild(url) {
         for (let i = 0; i < layerCount; i++) {
             const geometry = new THREE.PlaneGeometry(4, 5);
             
-            // i=0 is front (Sharp), i=layerCount-1 is back (Sharp)
-            // Layers in the middle get the "Blur" treatment
+            // Logic for sharp edges vs blurry interior
             const isEdge = (i === 0 || i === layerCount - 1);
-            const depthFactor = Math.abs((i - (layerCount/2)) / (layerCount/2)); // 0 at center, 1 at edges
+            const depthFactor = Math.abs((i - (layerCount/2)) / (layerCount/2));
 
             const material = new THREE.MeshStandardMaterial({ 
                 map: currentTexture, 
                 transparent: true, 
-                // CRITICAL: High alphaTest keeps the outline sharp even on blurry layers
-                alphaTest: 0.6, 
+                alphaTest: 0.6, // Keep silhouette sharp
                 side: THREE.DoubleSide,
-                // Inner layers are more transparent to create a soft volumetric blur look
-                opacity: isEdge ? 1.0 : 0.15,
-                color: new THREE.Color(1 - (1-depthFactor)*0.5, 1 - (1-depthFactor)*0.5, 1 - (1-depthFactor)*0.5)
+                // Middle layers are very faint to create blur effect
+                opacity: isEdge ? 1.0 : 0.12,
+                color: new THREE.Color(1 - (1-depthFactor)*0.4, 1 - (1-depthFactor)*0.4, 1 - (1-depthFactor)*0.4)
             });
 
             const slice = new THREE.Mesh(geometry, material);
             
-            // Offset logic: Inner layers get slight random jitter to simulate blur
-            const jitter = isEdge ? 0 : (Math.random() - 0.5) * 0.02;
+            // Apply slight jitter to middle layers for the "blurry" look
+            const jitter = isEdge ? 0 : (Math.random() - 0.5) * 0.03;
             slice.position.set(jitter, jitter, (i - layerCount / 2) * spread);
             
             if (isEdge) slice.castShadow = true;
@@ -212,20 +208,26 @@ function loadTextureAndBuild(url) {
         }
     }
 
-    function render() {
-        requestAnimationFrame(render);
+    function renderLoop() {
+        requestAnimationFrame(renderLoop);
+        
         if(charGroup) {
             charGroup.scale.setScalar(document.getElementById('scale').value);
-            if(charGroup.children.length !== parseInt(document.getElementById('layers').value)) buildSandwich();
+            // Rebuild if slider changes
+            if(charGroup.children.length > 0 && charGroup.children.length !== parseInt(document.getElementById('layers').value)) {
+                buildSandwich();
+            }
         }
+
         pointLight.intensity = document.getElementById('lightIntensity').value;
         pointLight.position.x = document.getElementById('lightX').value;
         ambientLight.intensity = document.getElementById('ambient').value;
+        
         renderer.render(scene, camera);
     }
 
     window.resetLight = () => {
-        document.getElementById('lightIntensity').value = 120;
+        document.getElementById('lightIntensity').value = 130;
         document.getElementById('lightX').value = 5;
         document.getElementById('ambient').value = 1.8;
     };
