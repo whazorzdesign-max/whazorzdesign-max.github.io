@@ -6,32 +6,23 @@
       "Access-Control-Allow-Headers": "Content-Type",
     };
 
-    if (request.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
-
-    const url = new URL(request.url);
-    
-    // --- NEW PROXY LOGIC ---
-    const proxyUrl = url.searchParams.get('proxyUrl');
-    if (proxyUrl) {
-      const imageRes = await fetch(proxyUrl);
-      const imageBlob = await imageRes.blob();
-      return new Response(imageBlob, {
-        headers: { ...corsHeaders, "Content-Type": imageRes.headers.get("Content-Type") }
-      });
+    if (request.method === "OPTIONS") {
+      return new Response(null, { headers: corsHeaders });
     }
-    // --- END PROXY LOGIC ---
 
     try {
+      const url = new URL(request.url);
       const name = url.searchParams.get('name')?.toLowerCase().trim();
       const realm = url.searchParams.get('realm')?.toLowerCase().trim().replace(/\s+/g, '-');
       const region = url.searchParams.get('region')?.toLowerCase() || 'eu';
 
       if (!name || !realm) {
-        return new Response(JSON.stringify({ error: "Trūkst vārds vai realm" }), { 
+        return new Response(JSON.stringify({ error: "Missing Name or Realm" }), { 
           status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } 
         });
       }
 
+      // 1. Get Blizzard Auth Token
       const auth = btoa(`${env.CLIENT_ID}:${env.CLIENT_SECRET}`);
       const tokenRes = await fetch(`https://${region}.oauth.battle.net/token`, {
         method: 'POST',
@@ -42,15 +33,17 @@
         body: 'grant_type=client_credentials'
       });
 
-      if (!tokenRes.ok) throw new Error("Blizzard autorizācijas kļūda");
+      if (!tokenRes.ok) throw new Error("Blizzard Auth Failed");
       const { access_token } = await tokenRes.json();
 
+      // 2. Fetch Character Media
       const mediaUrl = `https://${region}.api.blizzard.com/profile/wow/character/${realm}/${name}/character-media?namespace=profile-${region}&locale=en_US`;
+      
       const mediaRes = await fetch(mediaUrl, {
         headers: { 'Authorization': `Bearer ${access_token}` }
       });
 
-      if (!mediaRes.ok) throw new Error("Tēla media dati nav atrasti");
+      if (!mediaRes.ok) throw new Error("Character Media Not Found");
       const media = await mediaRes.json();
 
       return new Response(JSON.stringify({ media }), {
