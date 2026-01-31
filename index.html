@@ -89,7 +89,8 @@
 
     let scene, camera, renderer, charGroup, pointLight, ambientLight;
     const viewport = document.getElementById('viewport-container');
-    const PROXY = "https://api.allorigins.win/raw?url=";
+    // 1. Switch to a more reliable proxy
+    const PROXY = "https://corsproxy.io/?"; 
     const WORKER_URL = "https://my-worker.whazorz.workers.dev/"; 
     let currentTexture = null;
 
@@ -142,28 +143,37 @@
         } catch(e) { console.error(e); }
     }
 
+
+
 function loadTextureAndBuild(url) {
-        const loader = new THREE.TextureLoader();
-        loader.setCrossOrigin('anonymous');
-        
-        // Add a timestamp to the URL to bypass proxy caching, 
-        // which can sometimes trigger timeouts on old/broken links.
-        const cacheBuster = url.includes('?') ? `&t=${Date.now()}` : `?t=${Date.now()}`;
-        
-        loader.load(
-            url + cacheBuster, 
-            (texture) => {
-                texture.colorSpace = THREE.SRGBColorSpace;
-                currentTexture = texture;
+    const loader = new THREE.TextureLoader();
+    loader.setCrossOrigin('anonymous');
+    
+    // Use the proxy directly
+    // Ensure we are passing the raw Blizzard URL to the proxy
+    const finalUrl = PROXY + encodeURIComponent(url);
+
+    loader.load(
+        finalUrl, 
+        (texture) => {
+            texture.colorSpace = THREE.SRGBColorSpace;
+            currentTexture = texture;
+            buildSandwich();
+            document.getElementById('hud-status').innerText = "SYSTEM.READY // RENDER_STABLE";
+        },
+        undefined, 
+        (err) => {
+            console.error("Texture Load Error:", err);
+            // If corsproxy fails, try a fallback
+            document.getElementById('hud-status').innerText = "CORS_ERROR: ATTEMPTING_FALLBACK...";
+            const fallbackUrl = "https://api.allorigins.win/raw?url=" + encodeURIComponent(url);
+            loader.load(fallbackUrl, (tex) => {
+                currentTexture = tex;
                 buildSandwich();
-            },
-            undefined, // onProgress
-            (err) => {
-                console.error("Texture Load Error:", err);
-                document.getElementById('hud-status').innerText = "ERROR: PROXY_TIMEOUT_408";
-            }
-        );
-    }
+            });
+        }
+    );
+}
 
     function buildSandwich() {
         if(!currentTexture) return;
