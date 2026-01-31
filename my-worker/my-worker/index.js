@@ -1,19 +1,27 @@
 ﻿export default {
   async fetch(request, env) {
-    // 1. Iestatām CORS galvenes, lai GitHub lapa varētu sazināties ar Worker
     const corsHeaders = {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type",
     };
 
-    // Apstrādājam pārlūka "preflight" pieprasījumus
-    if (request.method === "OPTIONS") {
-      return new Response(null, { headers: corsHeaders });
+    if (request.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+    const url = new URL(request.url);
+    
+    // --- NEW PROXY LOGIC ---
+    const proxyUrl = url.searchParams.get('proxyUrl');
+    if (proxyUrl) {
+      const imageRes = await fetch(proxyUrl);
+      const imageBlob = await imageRes.blob();
+      return new Response(imageBlob, {
+        headers: { ...corsHeaders, "Content-Type": imageRes.headers.get("Content-Type") }
+      });
     }
+    // --- END PROXY LOGIC ---
 
     try {
-      const url = new URL(request.url);
       const name = url.searchParams.get('name')?.toLowerCase().trim();
       const realm = url.searchParams.get('realm')?.toLowerCase().trim().replace(/\s+/g, '-');
       const region = url.searchParams.get('region')?.toLowerCase() || 'eu';
@@ -24,7 +32,6 @@
         });
       }
 
-      // 2. Iegūstam Blizzard Auth žetonu
       const auth = btoa(`${env.CLIENT_ID}:${env.CLIENT_SECRET}`);
       const tokenRes = await fetch(`https://${region}.oauth.battle.net/token`, {
         method: 'POST',
@@ -38,9 +45,7 @@
       if (!tokenRes.ok) throw new Error("Blizzard autorizācijas kļūda");
       const { access_token } = await tokenRes.json();
 
-      // 3. Pieprasām tēla media datus (attēlus)
       const mediaUrl = `https://${region}.api.blizzard.com/profile/wow/character/${realm}/${name}/character-media?namespace=profile-${region}&locale=en_US`;
-      
       const mediaRes = await fetch(mediaUrl, {
         headers: { 'Authorization': `Bearer ${access_token}` }
       });
@@ -48,7 +53,6 @@
       if (!mediaRes.ok) throw new Error("Tēla media dati nav atrasti");
       const media = await mediaRes.json();
 
-      // 4. Atgriežam datus tavam HTML kodam saprotamā formātā
       return new Response(JSON.stringify({ media }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" }
       });
