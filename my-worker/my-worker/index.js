@@ -15,10 +15,12 @@
       const region = url.searchParams.get('region')?.toLowerCase() || 'eu';
 
       if (!name || !realm) {
-        return new Response(JSON.stringify({ error: "Missing Name/Realm" }), { status: 400, headers: corsHeaders });
+        return new Response(JSON.stringify({ error: "Missing Name or Realm" }), { 
+          status: 400, headers: corsHeaders 
+        });
       }
 
-      // 1. Blizzard Auth Token
+      // 1. Blizzard Auth (Izmantojot tavas env variablas)
       const auth = btoa(`${env.CLIENT_ID}:${env.CLIENT_SECRET}`);
       const tokenRes = await fetch(`https://${region}.oauth.battle.net/token`, {
         method: 'POST',
@@ -35,15 +37,13 @@
         headers: { 'Authorization': `Bearer ${access_token}` }
       });
       const media = await mediaRes.json();
-      const imgUrl = media.assets.find(a => a.key === "main-raw")?.value || media.assets[0].value;
+      const rawUrl = media.assets.find(a => a.key === "main-raw")?.value || media.assets[0].value;
 
-      // 3. IMAGE TO BASE64 (Apiet CORS)
-      const imageFetch = await fetch(imgUrl);
-      const imageArrayBuffer = await imageFetch.arrayBuffer();
-      const base64Image = btoa(
-        new Uint8Array(imageArrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
-      );
-      const dataUri = `data:image/png;base64,${base64Image}`;
+      // 3. Pārvēršam attēlu par Base64 (Tavs "Anti-CORS" risinājums)
+      const imageFetch = await fetch(rawUrl);
+      const buffer = await imageFetch.arrayBuffer();
+      const base64 = btoa(new Uint8Array(buffer).reduce((data, byte) => data + String.fromCharCode(byte), ''));
+      const dataUri = `data:image/png;base64,${base64}`;
 
       return new Response(JSON.stringify({ image: dataUri }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" }

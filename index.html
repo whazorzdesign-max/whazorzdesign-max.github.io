@@ -3,38 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Character Studio | 2.5D Extrusion</title>
-    
+    <title>AI Character Studio</title>
     <script async src="https://unpkg.com/es-module-shims@1.8.0/dist/es-module-shims.js"></script>
-    <script type="importmap">
-    {
-        "imports": {
-            "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
-        }
-    }
-    </script>
-
+    <script type="importmap"> { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } } </script>
     <style>
-        :root { 
-            --accent: #00f2ff; 
-            --panel-bg: rgba(0, 0, 0, 0.85);
-            --glass: rgba(255, 255, 255, 0.03);
-            --font: 'Inter', 'Segoe UI', sans-serif;
-        }
-        body, html { margin: 0; padding: 0; height: 100%; background: #000; color: #fff; font-family: var(--font); overflow: hidden; }
-        #studio-layout { display: grid; grid-template-columns: 320px 1fr 320px; height: 100vh; width: 100vw; }
-        #viewport-container { position: relative; background: radial-gradient(circle at center, #111 0%, #000 100%); overflow: hidden; border-left: 1px solid #222; border-right: 1px solid #222; }
-        .sidebar { background: var(--panel-bg); backdrop-filter: blur(30px); padding: 30px; display: flex; flex-direction: column; gap: 25px; z-index: 10; }
-        h2 { font-size: 11px; letter-spacing: 4px; color: var(--accent); margin: 0; text-transform: uppercase; border-bottom: 1px solid #333; padding-bottom: 10px; }
-        .control-block { background: var(--glass); padding: 15px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.05); }
-        label { display: block; font-size: 10px; text-transform: uppercase; color: #888; margin-bottom: 10px; }
-        input[type="text"] { width: 100%; background: #111; border: 1px solid #333; color: #fff; padding: 12px; border-radius: 4px; margin-bottom: 10px; box-sizing: border-box; font-family: monospace; }
-        input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer; margin-bottom: 5px; }
-        .btn-generate { 
-            width: 100%; background: var(--accent); color: #000; border: none; padding: 15px; border-radius: 4px; font-weight: 900; font-size: 12px; cursor: pointer; text-transform: uppercase; transition: 0.3s;
-        }
-        .btn-generate:hover { transform: scale(1.02); filter: brightness(1.2); }
-        #hud-status { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); font-family: monospace; font-size: 10px; color: #555; letter-spacing: 2px; text-align: center;}
+        :root { --accent: #00f2ff; --panel-bg: rgba(0, 0, 0, 0.75); --glass: rgba(255, 255, 255, 0.05); --font: 'Inter', sans-serif; }
+        body, html { margin: 0; padding: 0; height: 100%; background: #020202; color: #fff; font-family: var(--font); overflow: hidden; }
+        #studio-layout { display: grid; grid-template-columns: 300px 1fr 300px; height: 100vh; width: 100vw; background: radial-gradient(circle at center, #0a0a0a 0%, #000 100%); }
+        #viewport-container { position: relative; display: flex; align-items: center; justify-content: center; overflow: hidden; border-left: 1px solid #111; border-right: 1px solid #111; }
+        .sidebar { background: var(--panel-bg); backdrop-filter: blur(20px); padding: 25px; display: flex; flex-direction: column; gap: 20px; z-index: 10; }
+        h2 { font-size: 10px; letter-spacing: 3px; color: var(--accent); margin: 0; text-transform: uppercase; opacity: 0.8; }
+        .control-block { background: var(--glass); border: 1px solid rgba(255,255,255,0.05); padding: 15px; border-radius: 8px; }
+        label { display: block; font-size: 9px; text-transform: uppercase; color: #666; margin-bottom: 8px; }
+        input[type="text"] { width: 100%; background: #000; border: 1px solid #222; color: #fff; padding: 10px; border-radius: 4px; margin-bottom: 10px; box-sizing: border-box; }
+        input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer; }
+        .btn-generate { background: linear-gradient(45deg, #00f2ff, #0062ff); color: #000; border: none; padding: 12px; border-radius: 4px; font-weight: 800; font-size: 11px; cursor: pointer; text-transform: uppercase; width: 100%; }
+        #hud-status { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); font-family: monospace; font-size: 10px; color: #444; z-index: 5; }
+        .ai-glow { animation: glow 2s infinite alternate; }
+        @keyframes glow { from { opacity: 0.4; } to { opacity: 1; } }
     </style>
 </head>
 <body>
@@ -44,82 +30,62 @@
         <h2>Neural Import</h2>
         <div class="control-block">
             <label>Biological Identity</label>
-            <input type="text" id="name" placeholder="NAME">
-            <input type="text" id="realm" placeholder="REALM">
-            <button class="btn-generate" onclick="window.fetchChar()">Construct 3D Render</button>
+            <input type="text" id="name" placeholder="Name...">
+            <input type="text" id="realm" placeholder="Realm...">
+            <button class="btn-generate" onclick="window.fetchChar()">Process Neural Render</button>
         </div>
-        
-        <h2>Neural Mesh</h2>
+        <h2>AI Simulation</h2>
         <div class="control-block">
-            <label>Extrusion Depth</label>
-            <input type="range" id="depth" min="0.01" max="0.5" step="0.01" value="0.15">
-            <label>Asset Scale</label>
-            <input type="range" id="scale" min="0.5" max="3" step="0.1" value="1.5">
+            <label>Surface Depth</label>
+            <input type="range" id="depth" min="0" max="1" step="0.01" value="0.2">
+            <label>Mesh Scale</label>
+            <input type="range" id="scale" min="0.5" max="2.5" step="0.1" value="1.2">
         </div>
     </div>
-
     <div id="viewport-container">
-        <div id="hud-status">SYSTEM.READY // 2.5D_EXTRUSION_ACTIVE</div>
+        <div id="hud-status">ENGINE.READY // SHADOWS: PCF_SOFT</div>
     </div>
-
     <div class="sidebar">
-        <h2>Photon Studio</h2>
+        <h2>Light Studio</h2>
         <div class="control-block">
             <label>Light Intensity</label>
-            <input type="range" id="lightIntensity" min="0" max="500" value="150">
+            <input type="range" id="lightIntensity" min="0" max="200" value="100">
             <label>Light Position X</label>
-            <input type="range" id="lightX" min="-15" max="15" value="5">
+            <input type="range" id="lightX" min="-10" max="10" value="5">
         </div>
-
         <h2>Environment</h2>
         <div class="control-block">
-            <label>Ambient Glow</label>
-            <input type="range" id="ambient" min="0" max="10" step="0.1" value="2.0">
-            <button onclick="window.resetLight()" style="width:100%; background:transparent; border:1px solid #444; color:#666; padding:8px; font-size:9px; cursor:pointer; margin-top:10px;">RESET_PHOTONS</button>
+            <label>Ambient Occlusion</label>
+            <input type="range" id="ambient" min="0" max="5" step="0.1" value="1.5">
+            <button onclick="window.resetLight()" style="background:transparent; border:1px solid #333; color:#888; padding:5px; font-size:9px; width:100%; cursor:pointer; margin-top:10px;">Reset Lighting</button>
         </div>
     </div>
 </div>
 
 <script type="module">
     import * as THREE from 'three';
-
-    let scene, camera, renderer, pointLight, ambientLight;
-    let frontMesh, backMesh, characterGroup;
+    let scene, camera, renderer, charGroup, frontMesh, backMesh, pointLight, ambientLight;
     const viewport = document.getElementById('viewport-container');
-    
-    // NOMAINI ŠO URL UZ SAVU
     const WORKER_URL = "https://my-worker.whazorz.workers.dev/";
 
     function init() {
         scene = new THREE.Scene();
-        camera = new THREE.PerspectiveCamera(35, viewport.clientWidth / viewport.clientHeight, 0.1, 1000);
-        camera.position.set(0, 0, 10);
-
+        camera = new THREE.PerspectiveCamera(40, viewport.clientWidth / viewport.clientHeight, 0.1, 1000);
+        camera.position.set(0, 0, 7);
         renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
         renderer.setSize(viewport.clientWidth, viewport.clientHeight);
-        renderer.setPixelRatio(window.devicePixelRatio);
         renderer.shadowMap.enabled = true;
         viewport.appendChild(renderer.domElement);
 
-        characterGroup = new THREE.Group();
-        scene.add(characterGroup);
+        charGroup = new THREE.Group();
+        scene.add(charGroup);
 
-        ambientLight = new THREE.AmbientLight(0xffffff, 2.0);
+        ambientLight = new THREE.AmbientLight(0xffffff, 1.5);
         scene.add(ambientLight);
-
-        pointLight = new THREE.PointLight(0x00f2ff, 150, 100);
+        pointLight = new THREE.PointLight(0xffffff, 100);
         pointLight.position.set(5, 5, 5);
         pointLight.castShadow = true;
         scene.add(pointLight);
-
-        const floor = new THREE.Mesh(
-            new THREE.PlaneGeometry(100, 100),
-            new THREE.ShadowMaterial({ opacity: 0.5 })
-        );
-        floor.rotation.x = -Math.PI / 2;
-        floor.position.y = -3;
-        floor.receiveShadow = true;
-        scene.add(floor);
 
         animate();
     }
@@ -128,79 +94,52 @@
         const name = document.getElementById('name').value;
         const realm = document.getElementById('realm').value;
         const status = document.getElementById('hud-status');
-        
         if(!name || !realm) return;
-        status.innerHTML = `<span style="color:var(--accent)">INITIALIZING NEURAL LINK...</span>`;
-
+        status.innerHTML = `<span class="ai-glow" style="color:var(--accent)">INITIALIZING NEURAL FETCH...</span>`;
         try {
             const res = await fetch(`${WORKER_URL}?name=${encodeURIComponent(name)}&realm=${encodeURIComponent(realm)}`);
             const data = await res.json();
-            
-            if (data.image) {
+            if(data.image) {
                 loadModel(data.image);
-                status.innerText = "CONSTRUCTION SUCCESSFUL";
-            } else {
-                throw new Error("Invalid response");
+                status.innerText = "GENERATE COMPLETE // MESH_LOADED";
             }
-        } catch(e) {
-            status.innerText = "LINK_FAILURE: DATA_NODE_OFFLINE";
-        }
+        } catch(e) { status.innerText = "ERROR: NEURAL_LINK_FAILED"; }
     }
 
-    function loadModel(base64Data) {
-        const loader = new THREE.TextureLoader();
-        loader.load(base64Data, (texture) => {
-            while(characterGroup.children.length > 0) characterGroup.remove(characterGroup.children[0]);
-
-            const geometry = new THREE.PlaneGeometry(4, 5);
-            const material = new THREE.MeshStandardMaterial({ 
-                map: texture, 
-                transparent: true, 
-                alphaTest: 0.5,
-                metalness: 0.4,
-                roughness: 0.3
-            });
-
-            frontMesh = new THREE.Mesh(geometry, material);
-            backMesh = new THREE.Mesh(geometry, material.clone());
+    function loadModel(base64) {
+        new THREE.TextureLoader().load(base64, (texture) => {
+            while(charGroup.children.length > 0) charGroup.remove(charGroup.children[0]);
+            const mat = new THREE.MeshStandardMaterial({ map: texture, transparent: true, alphaTest: 0.5 });
+            frontMesh = new THREE.Mesh(new THREE.PlaneGeometry(4, 5), mat);
+            backMesh = new THREE.Mesh(new THREE.PlaneGeometry(4, 5), mat.clone());
             backMesh.material.side = THREE.BackSide;
-            
-            frontMesh.castShadow = true;
-            characterGroup.add(frontMesh);
-            characterGroup.add(backMesh);
+            charGroup.add(frontMesh, backMesh);
         });
     }
 
     function animate() {
         requestAnimationFrame(animate);
-        
-        if(characterGroup && frontMesh && backMesh) {
-            const scaleVal = document.getElementById('scale').value;
-            const depthVal = document.getElementById('depth').value;
-            
-            characterGroup.scale.set(scaleVal, scaleVal, scaleVal);
-            frontMesh.position.z = depthVal / 2;
-            backMesh.position.z = -depthVal / 2;
-
-            characterGroup.rotation.y = Math.sin(Date.now() * 0.001) * 0.2;
-            characterGroup.position.y = Math.sin(Date.now() * 0.002) * 0.1;
+        if(charGroup && frontMesh) {
+            const s = document.getElementById('scale').value;
+            const d = document.getElementById('depth').value;
+            charGroup.scale.set(s, s, s);
+            frontMesh.position.z = d/2;
+            backMesh.position.z = -d/2;
+            charGroup.rotation.y = Math.sin(Date.now() * 0.001) * 0.1;
         }
-
         pointLight.intensity = document.getElementById('lightIntensity').value;
         pointLight.position.x = document.getElementById('lightX').value;
         ambientLight.intensity = document.getElementById('ambient').value;
-        
         renderer.render(scene, camera);
     }
 
     window.resetLight = () => {
-        document.getElementById('lightIntensity').value = 150;
+        document.getElementById('lightIntensity').value = 100;
         document.getElementById('lightX').value = 5;
-        document.getElementById('ambient').value = 2.0;
+        document.getElementById('ambient').value = 1.5;
     };
 
     window.addEventListener('resize', () => {
-        if (!camera || !renderer) return;
         camera.aspect = viewport.clientWidth / viewport.clientHeight;
         camera.updateProjectionMatrix();
         renderer.setSize(viewport.clientWidth, viewport.clientHeight);
@@ -208,6 +147,5 @@
 
     init();
 </script>
-
 </body>
 </html>
