@@ -20,7 +20,7 @@
         });
       }
 
-      // 1. Blizzard Auth (Izmantojot tavas env variablas)
+      // 1. Blizzard Auth
       const auth = btoa(`${env.CLIENT_ID}:${env.CLIENT_SECRET}`);
       const tokenRes = await fetch(`https://${region}.oauth.battle.net/token`, {
         method: 'POST',
@@ -30,22 +30,26 @@
         },
         body: 'grant_type=client_credentials'
       });
+      
       const { access_token } = await tokenRes.json();
 
       // 2. Fetch Character Media
       const mediaRes = await fetch(`https://${region}.api.blizzard.com/profile/wow/character/${realm}/${name}/character-media?namespace=profile-${region}&locale=en_US`, {
         headers: { 'Authorization': `Bearer ${access_token}` }
       });
+      
       const media = await mediaRes.json();
       const rawUrl = media.assets.find(a => a.key === "main-raw")?.value || media.assets[0].value;
 
-      // 3. Pārvēršam attēlu par Base64 (Tavs "Anti-CORS" risinājums)
+      // 3. Fast Image Proxy (Converts to Base64 to bypass CORS and Proxy lag)
       const imageFetch = await fetch(rawUrl);
       const buffer = await imageFetch.arrayBuffer();
       const base64 = btoa(new Uint8Array(buffer).reduce((data, byte) => data + String.fromCharCode(byte), ''));
-      const dataUri = `data:image/png;base64,${base64}`;
-
-      return new Response(JSON.stringify({ image: dataUri }), {
+      
+      return new Response(JSON.stringify({ 
+        image: `data:image/png;base64,${base64}`,
+        source: rawUrl 
+      }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" }
       });
 
