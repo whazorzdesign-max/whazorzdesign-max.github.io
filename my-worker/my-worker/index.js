@@ -9,36 +9,31 @@
     if (request.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
     const url = new URL(request.url);
+    
+    // --- IMAGE PROXY FEATURE ---
     const proxyUrl = url.searchParams.get('proxyUrl');
-
-    // 1. IMAGE PROXY LOGIC (With Safety Check)
-    if (proxyUrl && proxyUrl.trim() !== "") {
+    if (proxyUrl) {
       try {
-        const imageRes = await fetch(proxyUrl);
-        if (!imageRes.ok) throw new Error("Blizzard Image Server rejected request");
+        // Double-decode check to handle weird Blizzard URL encodings
+        const target = decodeURIComponent(proxyUrl);
+        const imageRes = await fetch(target);
         
+        if (!imageRes.ok) return new Response("Blizzard rejected image", { status: 404, headers: corsHeaders });
+
         const contentType = imageRes.headers.get("Content-Type");
         return new Response(await imageRes.arrayBuffer(), {
           headers: { ...corsHeaders, "Content-Type": contentType || "image/png" }
         });
       } catch (e) {
-        return new Response(JSON.stringify({ error: "Proxy Failed", details: e.message }), { 
-          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } 
-        });
+        return new Response(e.message, { status: 400, headers: corsHeaders });
       }
     }
 
-    // 2. BLIZZARD API LOGIC
+    // --- BLIZZARD API FEATURE ---
     try {
       const name = url.searchParams.get('name')?.toLowerCase().trim();
       const realm = url.searchParams.get('realm')?.toLowerCase().trim().replace(/\s+/g, '-');
       const region = url.searchParams.get('region')?.toLowerCase() || 'eu';
-
-      if (!name || !realm) {
-        return new Response(JSON.stringify({ error: "Missing Name or Realm" }), { 
-          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } 
-        });
-      }
 
       const auth = btoa(`${env.CLIENT_ID}:${env.CLIENT_SECRET}`);
       const tokenRes = await fetch(`https://${region}.oauth.battle.net/token`, {
@@ -64,9 +59,7 @@
         headers: { ...corsHeaders, "Content-Type": "application/json" }
       });
     } catch (err) {
-      return new Response(JSON.stringify({ error: err.message }), { 
-        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } 
-      });
+      return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: corsHeaders });
     }
   }
 };
